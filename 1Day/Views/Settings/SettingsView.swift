@@ -1105,7 +1105,7 @@ private struct AIConfigurationSettingsView: View {
             Button(role: .destructive) {
                 showClearChatAlert = true
             } label: {
-                AppSettingsRow(icon: "trash", iconColor: FamilyUI.danger, title: "清空聊天历史", subtitle: "删除所有 AI 对话消息，不可恢复", value: chatMessages.isEmpty ? "无数据" : "清空")
+                AppSettingsRow(icon: "trash", title: "清空聊天历史", subtitle: "删除所有 AI 对话消息，不可恢复", value: chatMessages.isEmpty ? "无数据" : "清空", iconColor: FamilyUI.danger)
             }
             .buttonStyle(.plain)
             .disabled(chatMessages.isEmpty)

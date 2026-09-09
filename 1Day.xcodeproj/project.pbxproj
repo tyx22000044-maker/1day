@@ -38,6 +38,12 @@
 		BC807091C2D96DD69649D970 /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = A06A436B1B493F9A6BD6CA9F /* Note.swift */; };
 		C0DEC0DE0000000000000001 /* GlobalBannerCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000002 /* GlobalBannerCenter.swift */; };
 		C0DEC0DE0000000000000003 /* SystemPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000004 /* SystemPanel.swift */; };
+		FE5659863BDF42059DD0A9EE /* SystemTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAE727480B54B60B280963B /* SystemTextField.swift */; };
+		8A5D7933289947BEB2113C1F /* Archivo-800.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6819161B9B054238B9CCA3AF /* Archivo-800.ttf */; };
+		E87816976E1B434CB090CA4D /* Archivo-700.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB4AC9FB51C34C739813BC09 /* Archivo-700.ttf */; };
+		25C365CBFBCE45C2A4852B5B /* Archivo-600.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 17A10763BEFF4C13B8362A99 /* Archivo-600.ttf */; };
+		9360EF66F8E34928B231CEC6 /* Archivo-500.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2FA4DDCE636C4F79BF65FE0B /* Archivo-500.ttf */; };
+		843AA36F1E1C47E887260F5B /* Archivo-400.ttf in Resources */ = {isa = PBXBuildFile; fileRef = DC099999792C4E85A3017E48 /* Archivo-400.ttf */; };
 		C46F0960940273B70BCA47CF /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A918731C1C34C87899CCB6 /* UserSettings.swift */; };
 		CD0CAC0143F59AB05ADEF3F3 /* AIClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F2DD5650A424E6CDFE6C6E /* AIClients.swift */; };
 		D5C8E3C5ECC96F397CF9E250 /* AppErrorBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A1CB9E423064350E66877D /* AppErrorBanner.swift */; };
@@ -103,12 +109,38 @@
 		B8A918731C1C34C87899CCB6 /* UserSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000002 /* GlobalBannerCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalBannerCenter.swift; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000004 /* SystemPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPanel.swift; sourceTree = "<group>"; };
+		8DAE727480B54B60B280963B /* SystemTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemTextField.swift; sourceTree = "<group>"; };
+		6819161B9B054238B9CCA3AF /* Archivo-800.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Archivo-800.ttf"; sourceTree = "<group>"; };
+		CB4AC9FB51C34C739813BC09 /* Archivo-700.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Archivo-700.ttf"; sourceTree = "<group>"; };
+		17A10763BEFF4C13B8362A99 /* Archivo-600.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Archivo-600.ttf"; sourceTree = "<group>"; };
+		2FA4DDCE636C4F79BF65FE0B /* Archivo-500.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Archivo-500.ttf"; sourceTree = "<group>"; };
+		DC099999792C4E85A3017E48 /* Archivo-400.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Archivo-400.ttf"; sourceTree = "<group>"; };
 		D9C7D63F310DF9E112BEF075 /* AIChatComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatComponents.swift; sourceTree = "<group>"; };
 		E8A90747384BBE7FB8140932 /* AIConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConfigurationService.swift; sourceTree = "<group>"; };
 		ECCA8C4B64A74A49873DC49D /* PlanListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanListView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		B9E7DF0AAD5F400085AB9FC9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				8DAD351504274FD6BBABE045 /* Fonts */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8DAD351504274FD6BBABE045 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				DC099999792C4E85A3017E48 /* Archivo-400.ttf */,
+				2FA4DDCE636C4F79BF65FE0B /* Archivo-500.ttf */,
+				17A10763BEFF4C13B8362A99 /* Archivo-600.ttf */,
+				CB4AC9FB51C34C739813BC09 /* Archivo-700.ttf */,
+				6819161B9B054238B9CCA3AF /* Archivo-800.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		0280D42A7D8403F724CD71F3 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -244,6 +276,7 @@
 				69C3CDC5B287794298929DE7 /* Models */,
 				459966639F1F6D682C2BF746 /* Services */,
 				0280D42A7D8403F724CD71F3 /* ViewModels */,
+				B9E7DF0AAD5F400085AB9FC9 /* Resources */,
 				D04F2F8A147AFEB081ACF1A6 /* Views */,
 			);
 			path = 1Day;
@@ -258,6 +291,7 @@
 				B16412482E236FE8ACEFDF9B /* PrimaryButton.swift */,
 				B049D511149D642F77D2C6F1 /* SectionHeader.swift */,
 				C0DEC0DE0000000000000004 /* SystemPanel.swift */,
+				8DAE727480B54B60B280963B /* SystemTextField.swift */,
 				59B1784B3974AE195DDE9CF3 /* UserAvatarView.swift */,
 			);
 			path = Components;
@@ -406,6 +440,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				5EC823397BB1F8995FAA854D /* Assets.xcassets in Resources */,
+			843AA36F1E1C47E887260F5B /* Archivo-400.ttf in Resources */,
+			9360EF66F8E34928B231CEC6 /* Archivo-500.ttf in Resources */,
+			25C365CBFBCE45C2A4852B5B /* Archivo-600.ttf in Resources */,
+			E87816976E1B434CB090CA4D /* Archivo-700.ttf in Resources */,
+			8A5D7933289947BEB2113C1F /* Archivo-800.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -449,6 +488,7 @@
 				4E2D21E5FC926EDD16B12558 /* PrimaryButton.swift in Sources */,
 				22D034E6956564CAA8CC2D38 /* SectionHeader.swift in Sources */,
 				C0DEC0DE0000000000000003 /* SystemPanel.swift in Sources */,
+			FE5659863BDF42059DD0A9EE /* SystemTextField.swift in Sources */,
 				72740E3EDAA9BEA33170899C /* SettingsView.swift in Sources */,
 				88F6D8EF340D848E07CB089C /* SharedTypes.swift in Sources */,
 				20C02BC3CADDBC412C56D27C /* SpeechInputController.swift in Sources */,
