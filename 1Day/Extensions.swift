@@ -1,25 +1,82 @@
 import SwiftUI
 import Foundation
 import UIKit
+import CoreText
 import AudioToolbox
+
+// MARK: - Font Registration (Swiss Ledger — bundled Archivo grotesk)
+
+/// Registers the bundled Archivo static instances so `Font.custom` / `UIFont(name:)`
+/// can resolve them. Call once at app startup, before any appearance configuration.
+enum FamilyFontRegistration {
+    private static let fileNames = ["Archivo-400", "Archivo-500", "Archivo-600", "Archivo-700", "Archivo-800"]
+    private(set) static var didRegister = false
+
+    static func registerIfNeeded() {
+        guard !didRegister else { return }
+        didRegister = true
+        for name in fileNames {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf") else { continue }
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+    }
+}
 
 // MARK: - App Typography
 
+/// Swiss Ledger type scale. Body/label faces are Archivo (grotesk); SF Symbols keep
+/// the system font. Weights map to the bundled static instances.
 enum FamilyTypography {
-    static let hero = Font.system(size: 38, weight: .black, design: .rounded)
-    static let pageTitle = Font.system(size: 32, weight: .black, design: .rounded)
-    static let sectionLabel = Font.system(size: 11, weight: .semibold, design: .rounded)
-    static let icon = Font.system(size: 14, weight: .semibold, design: .rounded)
-    static let actionIcon = Font.system(.caption, design: .rounded, weight: .black)
-    static let badge = Font.system(size: 11, weight: .semibold, design: .rounded)
-    static let button = Font.system(.subheadline, design: .rounded, weight: .black)
+    /// PostScript name of the bundled Archivo face nearest the requested weight.
+    static func postScriptName(for weight: Font.Weight) -> String {
+        switch weight {
+        case .regular, .ultraLight, .thin, .light: return "ArchivoRoman-Regular"
+        case .medium:                              return "ArchivoRoman-Medium"
+        case .semibold:                            return "ArchivoRoman-SemiBold"
+        case .bold:                                return "ArchivoRoman-Bold"
+        default:                                   return "ArchivoRoman-ExtraBold" // heavy, black
+        }
+    }
+
+    static func text(_ style: Font.TextStyle, _ weight: Font.Weight = .regular) -> Font {
+        let size: CGFloat
+        switch style {
+        case .largeTitle:   size = 30
+        case .title:        size = 26
+        case .title2:       size = 20
+        case .title3:       size = 17
+        case .headline:     size = 16
+        case .body:         size = 16
+        case .callout:      size = 15
+        case .subheadline:  size = 14
+        case .footnote:     size = 12
+        case .caption:      size = 11
+        case .caption2:     size = 10
+        @unknown default:   size = 16
+        }
+        return Font.custom(postScriptName(for: weight), size: size, relativeTo: style)
+    }
+
+    static func fixed(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        Font.custom(postScriptName(for: weight), size: size)
+    }
+
+    static let hero = fixed(38, .black)
+    static let pageTitle = fixed(32, .black)
+    static let sectionLabel = fixed(11, .semibold)
+    static let badge = fixed(9, .bold)
+    static let button = text(.subheadline, .bold)
+
+    // SF Symbols faces — must stay on the system font.
+    static let icon = Font.system(size: 14, weight: .semibold)
+    static let actionIcon = Font.system(.caption, weight: .black)
 }
 
 enum AppTypography {
     static func configureGlobalAppearance() {
-        let inlineTitle = roundedUIFont(textStyle: .headline, weight: .semibold)
-        let largeTitle = roundedUIFont(textStyle: .largeTitle, weight: .bold)
-        let tabLabel = roundedUIFont(textStyle: .caption1, weight: .medium)
+        let inlineTitle = archivoUIFont(textStyle: .headline, weight: .semibold)
+        let largeTitle = archivoUIFont(textStyle: .largeTitle, weight: .bold)
+        let tabLabel = archivoUIFont(textStyle: .caption1, weight: .medium)
 
         let navigationAppearance = UINavigationBarAppearance()
         navigationAppearance.configureWithDefaultBackground()
@@ -33,23 +90,33 @@ enum AppTypography {
         UITabBarItem.appearance().setTitleTextAttributes([.font: tabLabel], for: .selected)
     }
 
-    private static func roundedUIFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight) -> UIFont {
-        let base = UIFont.preferredFont(forTextStyle: textStyle)
-        let descriptor = base.fontDescriptor.addingAttributes([
-            .traits: [UIFontDescriptor.TraitKey.weight: weight.rawValue]
-        ])
-        if let rounded = descriptor.withDesign(.rounded) {
-            return UIFont(descriptor: rounded, size: 0)
+    private static func archivoUIFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight) -> UIFont {
+        let size = UIFont.preferredFont(forTextStyle: textStyle).pointSize
+        let font = UIFont(name: FamilyTypography.postScriptName(for: Font.Weight(weight)), size: size)
+        return font ?? UIFont.preferredFont(forTextStyle: textStyle)
+    }
+}
+
+private extension Font.Weight {
+    init(_ weight: UIFont.Weight) {
+        switch weight {
+        case .ultraLight: self = .ultraLight
+        case .thin:       self = .thin
+        case .light:      self = .light
+        case .regular:    self = .regular
+        case .medium:     self = .medium
+        case .semibold:   self = .semibold
+        case .bold:       self = .bold
+        case .heavy:      self = .heavy
+        default:          self = .black
         }
-        return UIFont(descriptor: descriptor, size: 0)
     }
 }
 
 private struct AppTypographyModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .font(.system(.body, design: .rounded))
-            .fontDesign(.rounded)
+            .font(FamilyTypography.text(.body))
     }
 }
 
@@ -80,7 +147,7 @@ struct AppSwitchStyle: ToggleStyle {
                     }
                     .frame(width: 50, height: 30)
                     .overlay(alignment: configuration.isOn ? .trailing : .leading) {
-                        RoundedRectangle(cornerRadius: 7)
+                        RoundedRectangle(cornerRadius: 1)
                             .fill(configuration.isOn ? Color.white : Color.secondary.opacity(0.55))
                             .frame(width: 20, height: 20)
                             .padding(5)
@@ -134,48 +201,67 @@ enum AppSpacing {
     static let pageBottom: CGFloat = 24
 }
 
-// MARK: - Family UI V2
+// MARK: - Family UI — Swiss Ledger
 
-/// Shared visual language tokens, ported from the 1App Family V2 system-panel
-/// direction (see APP_FAMILY_CONTEXT.md). Neutral surfaces match the family
-/// baseline; `accent` follows the shared 1App Family blue direction.
+/// Shared visual language tokens for the "Swiss Ledger" direction: cold paper,
+/// grid-first hairlines, a single accent, no shadows. Neutral surfaces follow the
+/// family-wide Swiss Ledger spec; `accent` is the shared print red.
 enum FamilyUI {
     static let pageBackground = Color(UIColor { t in
         t.userInterfaceStyle == .dark
-            ? UIColor(red: 0.086, green: 0.082, blue: 0.075, alpha: 1)   // #161410 warm near-black
-            : UIColor(red: 0.957, green: 0.945, blue: 0.922, alpha: 1)   // #f4f1eb warm parchment
+            ? UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 1)   // #0B0B0A near-black paper
+            : UIColor(red: 0.980, green: 0.980, blue: 0.969, alpha: 1)   // #FAFAF7 cold paper
     })
     static let panelBackground = Color(UIColor { t in
         t.userInterfaceStyle == .dark
-            ? UIColor(red: 0.122, green: 0.114, blue: 0.102, alpha: 1)   // #1f1d1a dark warm surface
-            : UIColor.white
+            ? UIColor(red: 0.086, green: 0.086, blue: 0.078, alpha: 1)   // #161614 dark panel
+            : UIColor.white                                              // #FFFFFF panel on paper
     })
     static let panelMutedBackground = Color(UIColor { t in
         t.userInterfaceStyle == .dark
-            ? UIColor(red: 0.165, green: 0.153, blue: 0.141, alpha: 1)   // #2a2724 dark muted
-            : UIColor(red: 0.941, green: 0.929, blue: 0.906, alpha: 1)   // #f0ede7
+            ? UIColor(red: 0.122, green: 0.122, blue: 0.110, alpha: 1)   // #1F1F1C dark muted
+            : UIColor(red: 0.949, green: 0.949, blue: 0.937, alpha: 1)   // #F2F2EF muted
     })
     static let panelBorder = Color(UIColor { t in
         t.userInterfaceStyle == .dark
-            ? UIColor.white.withAlphaComponent(0.12)
-            : UIColor.black.withAlphaComponent(0.14)
+            ? UIColor.white.withAlphaComponent(0.14)
+            : UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 0.14) // rgba(11,11,10,0.14)
     })
     static let divider = Color(UIColor { t in
         t.userInterfaceStyle == .dark
-            ? UIColor.white.withAlphaComponent(0.08)
-            : UIColor.black.withAlphaComponent(0.10)
+            ? UIColor.white.withAlphaComponent(0.10)
+            : UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 0.10) // rgba(11,11,10,0.10)
+    })
+    static let hairlineStrong = Color(UIColor { t in
+        t.userInterfaceStyle == .dark
+            ? UIColor.white.withAlphaComponent(0.16)
+            : UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 0.16) // rgba(11,11,10,0.16) — tab bar rule
     })
 
-    static let accent = Color(hex: "1e4ed8")
-    static let accentDeep = Color(hex: "173a98")
-    static let success = Color(hex: "2f7a63")
-    static let warning = Color.orange
-    static let danger = Color.red
-    static let subtleText = Color(.systemGray)
+    static let accent = Color(hex: "C4321F")        // print red — single signal color
+    static let accentDeep = Color(hex: "8F2416")    // pressed/emphasis red (mockup hover value)
+    static let ink = Color(UIColor { t in
+        t.userInterfaceStyle == .dark
+            ? UIColor(red: 0.980, green: 0.980, blue: 0.969, alpha: 1)   // #FAFAF7 — inverted solid band
+            : UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 1)   // #0B0B0A — primary ink
+    })
+    static let paper = Color(UIColor { t in
+        t.userInterfaceStyle == .dark
+            ? UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 1)   // text on inverted ink band
+            : UIColor(red: 0.980, green: 0.980, blue: 0.969, alpha: 1)   // #FAFAF7
+    })
+    static let success = Color(hex: "2F7A63")       // muted green — label-only semantic
+    static let warning = Color(hex: "8A6A1F")       // muted gold — label-only semantic
+    static let danger = Color(hex: "C4321F")        // danger shares the accent red
+    static let subtleText = Color(UIColor { t in
+        t.userInterfaceStyle == .dark
+            ? UIColor(red: 0.612, green: 0.612, blue: 0.596, alpha: 1)   // #9C9B90 ink-faint
+            : UIColor(red: 0.431, green: 0.431, blue: 0.408, alpha: 1)   // #6E6E68 ink-soft
+    })
 
-    static let panelCornerRadius: CGFloat = 12
-    static let controlCornerRadius: CGFloat = 10
-    static let badgeCornerRadius: CGFloat = 6
+    static let panelCornerRadius: CGFloat = 2
+    static let controlCornerRadius: CGFloat = 2
+    static let badgeCornerRadius: CGFloat = 0
     static let iconBoxSize: CGFloat = 34
 }
 

@@ -19,7 +19,7 @@ struct SystemPageHeader: View {
 
             if let detail {
                 Text(detail)
-                .font(.system(.subheadline, design: .rounded))
+                .font(FamilyTypography.text(.subheadline))
                     .foregroundStyle(.secondary)
             }
         }
@@ -55,7 +55,7 @@ struct SystemPanel<Content: View>: View {
 
                     if let detail {
                         Text(detail)
-                            .font(.system(.subheadline, design: .rounded))
+                            .font(FamilyTypography.text(.subheadline))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -111,10 +111,10 @@ struct FamilyListIconBox: View {
     var size: CGFloat = FamilyUI.iconBoxSize
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 8)
+        Rectangle()
             .fill(FamilyUI.panelMutedBackground)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                Rectangle()
                     .stroke(FamilyUI.panelBorder, lineWidth: 1)
             )
             .frame(width: size, height: size)
@@ -194,7 +194,7 @@ struct SystemStatusBadge: View {
         var foreground: Color {
             switch self {
             case .neutral:
-                return .secondary
+                return FamilyUI.subtleText
             case .accent:
                 return FamilyUI.accent
             case .success:
@@ -205,25 +205,21 @@ struct SystemStatusBadge: View {
                 return FamilyUI.danger
             }
         }
-
-        var background: Color {
-            foreground.opacity(0.10)
-        }
     }
 
     let text: String
     var tone: Tone = .neutral
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .tracking(0.8)
+        Text(text.uppercased())
+            .font(FamilyTypography.badge)
+            .tracking(0.6)
             .foregroundStyle(tone.foreground)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: FamilyUI.badgeCornerRadius)
-                    .fill(tone.background)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .overlay(
+                Rectangle()
+                    .stroke(tone == .neutral ? FamilyUI.panelBorder : tone.foreground, lineWidth: 1)
             )
     }
 }

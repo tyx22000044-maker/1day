@@ -36,29 +36,26 @@ struct UserAvatarView: View {
                         .foregroundStyle(FamilyUI.accent)
                 }
             } else if !name.isEmpty {
-                RoundedRectangle(cornerRadius: size * 0.28)
-                    .fill(LinearGradient(
-                        colors: [FamilyUI.accent, FamilyUI.accentDeep],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
+                RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
+                    .fill(FamilyUI.ink)
                     .frame(width: size, height: size)
                     .overlay(
                         Text(initials)
-                            .font(.system(size: size * 0.35, weight: .bold, design: .rounded))
+                            .font(FamilyTypography.fixed(size * 0.35, .bold))
                             .foregroundColor(.white)
                     )
             } else {
-                RoundedRectangle(cornerRadius: size * 0.28)
+                RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
                     .fill(FamilyUI.panelMutedBackground)
                     .frame(width: size, height: size)
                     .overlay(
-                        RoundedRectangle(cornerRadius: size * 0.28)
+                        RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
                             .stroke(FamilyUI.panelBorder, lineWidth: 1)
                     )
                     .overlay(
                         Image(systemName: "person.fill")
-                            .font(.system(size: size * 0.4, design: .rounded))
-                            .foregroundColor(Color(.systemGray3))
+                            .font(.system(size: size * 0.4))
+                            .foregroundColor(FamilyUI.subtleText)
                     )
             }
         }

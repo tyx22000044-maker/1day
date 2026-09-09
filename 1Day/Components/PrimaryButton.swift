@@ -12,15 +12,16 @@ struct PrimaryButton: View {
         } label: {
             Text(title)
                 .font(FamilyTypography.button)
+                .tracking(0.4)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(isEnabled ? FamilyUI.accent : Color(.systemGray4))
                 .foregroundStyle(Color.white)
                 .overlay(
-                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
-                        .stroke(Color.black.opacity(0.18), lineWidth: 1)
+                    Rectangle()
+                        .stroke(isEnabled ? FamilyUI.accentDeep : FamilyUI.panelBorder, lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
+                .clipShape(Rectangle())
         }
         .disabled(!isEnabled)
         .buttonStyle(.plain)
@@ -37,7 +38,7 @@ struct SecondaryButton: View {
             action()
         } label: {
             Text(title)
-                .font(.system(.subheadline, design: .rounded))
+                .font(FamilyTypography.text(.subheadline))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, AppSpacing.itemSpacing)
         }

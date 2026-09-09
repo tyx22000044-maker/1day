@@ -11,7 +11,8 @@ struct SystemTextField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.caption2.weight(.bold))
+                .font(FamilyTypography.text(.caption2, .bold))
+                .tracking(0.6)
                 .foregroundStyle(.secondary)
 
             Group {
@@ -23,15 +24,15 @@ struct SystemTextField: View {
                 }
             }
             .keyboardType(keyboardType)
-            .font(.subheadline.weight(.semibold))
+            .font(FamilyTypography.text(.subheadline, .semibold))
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(FamilyUI.panelMutedBackground)
             .overlay(
-                RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
+                Rectangle()
                     .stroke(FamilyUI.panelBorder, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
+            .clipShape(Rectangle())
         }
     }
 }

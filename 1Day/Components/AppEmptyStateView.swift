@@ -9,27 +9,27 @@ struct AppEmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
+            Rectangle()
                 .fill(FamilyUI.panelMutedBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
+                    Rectangle()
                         .stroke(FamilyUI.panelBorder, lineWidth: 1)
                 )
                 .frame(width: 72, height: 72)
                 .overlay(
                     Image(systemName: icon)
-                        .font(.system(size: 30, weight: .semibold, design: .rounded))
+                        .font(.system(size: 30, weight: .semibold))
                         .foregroundStyle(FamilyUI.accent)
                 )
 
             Text(title)
-                .font(.headline.weight(.black))
+                .font(FamilyTypography.text(.headline, .bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
 
             if let subtitle {
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(FamilyTypography.text(.subheadline))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -38,16 +38,17 @@ struct AppEmptyStateView: View {
             if let buttonTitle, let buttonAction {
                 Button(action: buttonAction) {
                     Text(buttonTitle)
-                        .font(.subheadline.weight(.black))
+                        .font(FamilyTypography.button)
+                        .tracking(0.4)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
                         .background(FamilyUI.accent)
                         .foregroundStyle(.white)
                         .overlay(
-                            RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
-                                .stroke(Color.black.opacity(0.18), lineWidth: 1)
+                            Rectangle()
+                                .stroke(FamilyUI.accentDeep, lineWidth: 1)
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
+                        .clipShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)

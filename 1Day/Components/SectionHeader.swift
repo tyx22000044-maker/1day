@@ -8,7 +8,7 @@ struct SectionHeader: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.headline)
+                .font(FamilyTypography.text(.headline, .bold))
             Spacer()
             if let action, !actionLabel.isEmpty {
                 Button {
@@ -16,7 +16,7 @@ struct SectionHeader: View {
                     action()
                 } label: {
                     Text(actionLabel)
-                        .font(.subheadline)
+                        .font(FamilyTypography.text(.subheadline))
                         .foregroundStyle(FamilyUI.accent)
                 }
             }

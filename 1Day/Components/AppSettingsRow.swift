@@ -11,10 +11,10 @@ struct AppSettingsRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8)
+            Rectangle()
                 .fill(FamilyUI.panelMutedBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    Rectangle()
                         .stroke(FamilyUI.panelBorder, lineWidth: 1)
                 )
                 .frame(width: FamilyUI.iconBoxSize, height: FamilyUI.iconBoxSize)
@@ -26,11 +26,11 @@ struct AppSettingsRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .font(FamilyTypography.text(.subheadline, .semibold))
                     .foregroundStyle(.primary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(.caption, design: .rounded))
+                        .font(FamilyTypography.text(.caption))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -39,15 +39,16 @@ struct AppSettingsRow: View {
 
             if let value, !value.isEmpty {
                 Text(value)
-                    .font(.system(.subheadline, design: .rounded, weight: emphasizesValue ? .semibold : .regular))
+                    .font(FamilyTypography.text(.subheadline, emphasizesValue ? .semibold : .regular))
+                    .monospacedDigit()
                     .foregroundStyle(emphasizesValue ? FamilyUI.accent : .secondary)
                     .lineLimit(1)
             }
 
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(.caption, weight: .semibold))
+                    .foregroundStyle(FamilyUI.subtleText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

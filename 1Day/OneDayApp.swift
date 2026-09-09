@@ -7,6 +7,7 @@ struct OneDayApp: App {
     @State private var showSplash = true
 
     init() {
+        FamilyFontRegistration.registerIfNeeded()
         AppTypography.configureGlobalAppearance()
         NotificationService.configureCategories()
     }
