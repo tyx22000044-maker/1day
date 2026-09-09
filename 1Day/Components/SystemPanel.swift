@@ -1,0 +1,229 @@
+import SwiftUI
+
+struct SystemPageHeader: View {
+    let eyebrow: String
+    let title: String
+    var detail: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(eyebrow)
+                .font(FamilyTypography.sectionLabel)
+                .tracking(1.2)
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(FamilyTypography.pageTitle)
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+
+            if let detail {
+                Text(detail)
+                .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SystemPanel<Content: View>: View {
+    let title: String?
+    let detail: String?
+    let content: Content
+
+    init(title: String, detail: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.detail = detail
+        self.content = content()
+    }
+
+    init(@ViewBuilder content: () -> Content) {
+        self.title = nil
+        self.detail = nil
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let title {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title)
+                        .font(FamilyTypography.sectionLabel)
+                        .tracking(1.2)
+                        .foregroundStyle(.secondary)
+
+                    if let detail {
+                        Text(detail)
+                            .font(.system(.subheadline, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FamilyUI.panelBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
+                .stroke(FamilyUI.panelBorder, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius))
+    }
+}
+
+struct SystemPanelDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(FamilyUI.divider)
+            .frame(height: 1)
+    }
+}
+
+struct FamilyAddButtonLabel: View {
+    var body: some View {
+        Image(systemName: "plus")
+            .font(FamilyTypography.actionIcon)
+            .frame(width: 34, height: 34)
+            .background(Color.black)
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
+            .accessibilityLabel("新增")
+    }
+}
+
+struct FamilyAddButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            FamilyAddButtonLabel()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct FamilyListIconBox: View {
+    let systemName: String
+    var color: Color = FamilyUI.accent
+    var size: CGFloat = FamilyUI.iconBoxSize
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(FamilyUI.panelMutedBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(FamilyUI.panelBorder, lineWidth: 1)
+            )
+            .frame(width: size, height: size)
+            .overlay(
+                Image(systemName: systemName)
+                    .font(FamilyTypography.icon)
+                    .foregroundStyle(color)
+            )
+    }
+}
+
+struct FamilyTaskRow: View {
+    let item: PlanItem
+    let asOf: Date
+    var showsScheduleDetails = false
+
+    var body: some View {
+        HStack(spacing: AppSpacing.rowIconSpacing) {
+            FamilyListIconBox(
+                systemName: item.isCompleted ? "checkmark.circle.fill" : "circle",
+                color: item.isCompleted ? FamilyUI.success : FamilyUI.accent
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .strikethrough(item.isCompleted)
+                    .foregroundStyle(item.isCompleted ? .secondary : .primary)
+
+                if !item.notes.isEmpty {
+                    Text(item.notes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if showsScheduleDetails {
+                    HStack(spacing: 6) {
+                        if let dueDate = item.dueDate {
+                            Text(dueDate.formatted(.dateTime.month().day()))
+                                .font(.caption2)
+                                .foregroundStyle(item.isOverdue(asOf: asOf) ? FamilyUI.danger : .secondary)
+                        }
+                        if item.reminderTime != nil {
+                            Image(systemName: "bell.fill")
+                                .font(.caption2)
+                                .foregroundStyle(FamilyUI.warning)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            if item.priority != .none {
+                Image(systemName: "flag.fill")
+                    .font(.caption)
+                    .foregroundStyle(item.priority.color)
+            }
+
+            if item.isOverdue(asOf: asOf) {
+                SystemStatusBadge(text: "过期", tone: .danger)
+            }
+        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+}
+
+struct SystemStatusBadge: View {
+    enum Tone {
+        case neutral
+        case accent
+        case success
+        case warning
+        case danger
+
+        var foreground: Color {
+            switch self {
+            case .neutral:
+                return .secondary
+            case .accent:
+                return FamilyUI.accent
+            case .success:
+                return FamilyUI.success
+            case .warning:
+                return FamilyUI.warning
+            case .danger:
+                return FamilyUI.danger
+            }
+        }
+
+        var background: Color {
+            foreground.opacity(0.10)
+        }
+    }
+
+    let text: String
+    var tone: Tone = .neutral
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .tracking(0.8)
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: FamilyUI.badgeCornerRadius)
+                    .fill(tone.background)
+            )
+    }
+}

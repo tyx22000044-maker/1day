@@ -1,0 +1,28 @@
+.DS_Store
+*.swp
+*.swo
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Build output
+DerivedData/
+build/
+*.ipa
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Local secrets and temporary files
+.env
+.env.*
+*.mobileprovision
+*.p12
+*.cer
+*.key
+.~lock.*
