@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>1Day — Today (reference only, not in pilot scope)</title>
+  <!-- Standalone export from the Swiss Ledger prototype canvas. Static reference only. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: #C4321F; }
+    a:hover { color: #8f2416; }
+    .screen{width:390px;background:#FAFAF7;color:#0B0B0A;font-family:'Archivo',-apple-system,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:22px 18px 12px;}
+    .brand{display:flex;align-items:center;gap:8px;}
+    .mark{width:22px;height:22px;border:1px solid #0B0B0A;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;flex:none;}
+    .wordmark{font-size:13px;font-weight:800;letter-spacing:.02em;}
+    .navlabel{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6E6E68;}
+    .hero{padding:8px 18px 14px;border-bottom:1px solid rgba(11,11,10,0.14);}
+    .hero-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6E6E68;}
+    .hero-value{font-size:34px;font-weight:800;letter-spacing:-0.01em;margin-top:3px;}
+    .hero-value small{font-size:15px;font-weight:600;color:#6E6E68;}
+    .tickline{height:2px;background:rgba(11,11,10,0.12);margin-top:11px;position:relative;}
+    .tickline i{position:absolute;left:0;top:0;height:100%;display:block;}
+    .hero-stats{display:flex;gap:26px;margin-top:12px;}
+    .hero-stats div{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:#6E6E68;}
+    .hero-stats b{display:block;font-size:14px;font-weight:700;color:#0B0B0A;letter-spacing:0;text-transform:none;margin-top:2px;}
+    .sectionhead{display:flex;justify-content:space-between;align-items:baseline;padding:13px 18px 6px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+    .sectionhead .count{color:#6E6E68;font-weight:600;}
+    .row{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(11,11,10,0.10);}
+    .row-mark{width:8px;height:8px;border:1px solid #0B0B0A;flex:none;}
+    .row-mark.filled{background:#0B0B0A;}
+    .row-text{flex:1;min-width:0;}
+    .row-text .t{font-size:13.5px;font-weight:600;}
+    .row-text .m{font-size:10.5px;color:#6E6E68;margin-top:2px;}
+    .row-val{text-align:right;flex:none;}
+    .row-val .v{font-size:13.5px;font-weight:700;}
+    .tag{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid #0B0B0A;margin-top:4px;}
+    .tabbar{margin-top:auto;display:flex;border-top:1px solid rgba(11,11,10,0.16);}
+    .tab{flex:1;text-align:center;padding:10px 4px 12px;font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9C9B90;}
+    .tab.on{color:#0B0B0A;}
+    .aimark{width:20px;height:20px;color:#FAFAF7;display:flex;align-items:center;justify-content:center;margin:0 auto 3px;font-size:9px;font-weight:800;}
+    .caption{padding:10px 18px 20px;font-size:9.5px;color:#9C9B90;letter-spacing:.03em;}
+  </style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">1D</div>
+      <div class="wordmark">1DAY</div>
+    </div>
+    <div class="navlabel">今日 · TODAY</div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-label">Open Tasks — Dec 24</div>
+    <div class="hero-value">4<small>&nbsp;of&nbsp;6</small></div>
+    <div class="tickline"><i style="width:33%;background:#C4321F;"></i></div>
+    <div class="hero-stats">
+      <div>Overdue<b>1</b></div>
+      <div>Scheduled<b>2</b></div>
+      <div>Notes<b>2</b></div>
+    </div>
+  </div>
+
+  <div class="sectionhead" style="color:#C4321F;"><span>Overdue</span><span class="count" style="color:#C4321F;opacity:.7;">Vol 01</span></div>
+  <div class="row">
+    <span class="row-mark" style="border-color:#C4321F;"></span>
+    <span class="row-text"><span class="t">提交季度报告</span><span class="m">昨天 18:00 到期</span></span>
+    <span class="row-val"><span class="tag" style="color:#C4321F;border-color:#C4321F;">OVERDUE</span></span>
+  </div>
+
+  <div class="sectionhead"><span>Today — Dec 24</span><span class="count">Vol 03</span></div>
+  <div class="row">
+    <span class="row-mark"></span>
+    <span class="row-text"><span class="t">买菜</span><span class="m">18:00</span></span>
+    <span class="row-val"><span class="tag">OPEN</span></span>
+  </div>
+  <div class="row">
+    <span class="row-mark"></span>
+    <span class="row-text"><span class="t">健身房 · 45 分钟</span><span class="m">19:30 提醒</span></span>
+    <span class="row-val"><span class="tag">SCHEDULED</span></span>
+  </div>
+  <div class="row">
+    <span class="row-mark filled"></span>
+    <span class="row-text"><span class="t">给妈妈打电话</span><span class="m">无固定时间</span></span>
+    <span class="row-val"><span class="tag">DONE</span></span>
+  </div>
+
+  <div class="sectionhead"><span>Notes</span><span class="count">Vol 02</span></div>
+  <div class="row">
+    <span class="row-mark"></span>
+    <span class="row-text"><span class="t">读书笔记 · 《原子习惯》</span><span class="m">更新于今天</span></span>
+    <span class="row-val"><span class="tag">DRAFT</span></span>
+  </div>
+  <div class="row">
+    <span class="row-mark"></span>
+    <span class="row-text"><span class="t">下周旅行想法</span><span class="m">更新于昨天</span></span>
+    <span class="row-val"><span class="tag">DRAFT</span></span>
+  </div>
+
+  <div class="caption">1Day 旗舰屏 — Today</div>
+
+  <div class="tabbar">
+    <div class="tab on">Today</div>
+    <div class="tab">Plan</div>
+    <div class="tab"><div class="aimark" style="background:#C4321F;">AI</div></div>
+    <div class="tab">Notes</div>
+    <div class="tab">Settings</div>
+  </div>
+
+</div>
+</body>
+</html>

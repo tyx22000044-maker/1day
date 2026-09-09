@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AI Chat — shared skeleton (PILOT SCOPE, 1Cash instance shown)</title>
+  <!-- Standalone export from the Swiss Ledger prototype canvas. Static reference only. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: #C4321F; }
+    a:hover { color: #8f2416; }
+    .screen{width:390px;background:#FAFAF7;color:#0B0B0A;font-family:'Archivo',-apple-system,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:22px 18px 10px;}
+    .brand{display:flex;align-items:center;gap:8px;}
+    .mark{width:22px;height:22px;border:1px solid #0B0B0A;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;flex:none;}
+    .wordmark{font-size:13px;font-weight:800;letter-spacing:.02em;}
+    .navlabel{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6E6E68;}
+    .providerline{display:flex;align-items:center;justify-content:space-between;padding:0 18px 14px;border-bottom:1px solid rgba(11,11,10,0.14);}
+    .providerline .p{font-size:10.5px;font-weight:600;color:#6E6E68;}
+    .tag{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid #0B0B0A;}
+
+    .chat{display:flex;flex-direction:column;gap:10px;padding:16px 18px;}
+    .bubble{max-width:76%;padding:10px 13px;font-size:12.5px;line-height:1.5;}
+    .bubble.ai{align-self:flex-start;border:1px solid rgba(11,11,10,0.18);border-bottom-right-radius:0;}
+    .bubble.user{align-self:flex-end;background:#0B0B0A;color:#FAFAF7;border-bottom-left-radius:0;}
+
+    .confirm{align-self:flex-start;width:88%;border:1px solid #0B0B0A;padding:14px;display:flex;flex-direction:column;gap:8px;}
+    .confirm .cat{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6E6E68;}
+    .confirm .amt{font-size:24px;font-weight:800;}
+    .confirm .meta{font-size:10.5px;color:#6E6E68;display:flex;align-items:center;gap:8px;}
+    .confirm .actions{display:flex;justify-content:flex-end;gap:16px;align-items:center;margin-top:4px;}
+    .confirm .undo{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;}
+    .confirm .go{background:#0B0B0A;color:#FAFAF7;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:9px 16px;}
+
+    .chips{display:flex;gap:8px;padding:0 18px 10px;flex-wrap:wrap;margin-top:auto;}
+    .chip{border:1px solid rgba(11,11,10,0.3);font-size:10.5px;font-weight:600;padding:5px 10px;color:#6E6E68;}
+    .inputbar{display:flex;align-items:center;gap:10px;padding:0 18px 14px;}
+    .iconmark{width:26px;height:26px;border:1px solid #0B0B0A;display:flex;align-items:center;justify-content:center;flex:none;}
+    .field{flex:1;border:1px solid rgba(11,11,10,0.2);padding:9px 12px;font-size:12px;color:#9C9B90;}
+    .sendmark{width:26px;height:26px;background:#0B0B0A;color:#FAFAF7;display:flex;align-items:center;justify-content:center;flex:none;}
+
+    .sectionhead{padding:12px 18px 4px;font-size:9.5px;color:#9C9B90;letter-spacing:.03em;border-top:1px solid rgba(11,11,10,0.14);}
+    .tabbar{display:flex;border-top:1px solid rgba(11,11,10,0.16);}
+    .tab{flex:1;text-align:center;padding:10px 4px 12px;font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9C9B90;}
+    .tab.on{color:#0B0B0A;}
+    .aimark{width:20px;height:20px;color:#FAFAF7;display:flex;align-items:center;justify-content:center;margin:0 auto 3px;font-size:9px;font-weight:800;}
+  </style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">1C</div>
+      <div class="wordmark">1CASH</div>
+    </div>
+    <div class="navlabel">AI</div>
+  </div>
+
+  <div class="providerline">
+    <span class="p">Claude Sonnet 5</span>
+    <span class="tag">CONNECTED</span>
+  </div>
+
+  <div class="chat">
+    <div class="bubble ai">早上好，需要记点什么吗？</div>
+    <div class="bubble user">帮我记一笔打车费，34 块</div>
+    <div class="bubble ai">识别完成，请确认：</div>
+
+    <div class="confirm">
+      <div class="cat">交通 · 打车</div>
+      <div class="amt">-¥34.00</div>
+      <div class="meta"><span>推断日期 今天</span><span class="tag" style="color:#C4321F;border-color:#C4321F;">PENDING</span></div>
+      <div class="actions">
+        <span class="undo" style="color:#C4321F;">撤销</span>
+        <span class="go">确认记录</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sectionhead">共享 AI Chat 骨架 — 气泡与确认卡结构在七个 App 里保持一致，仅确认卡字段随领域变化</div>
+
+  <div class="chips">
+    <span class="chip">记录早餐</span>
+    <span class="chip">本月支出</span>
+    <span class="chip">拍照识别</span>
+  </div>
+  <div class="inputbar">
+    <div class="iconmark">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0B0B0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </div>
+    <div class="field">输入或语音记录…</div>
+    <div class="sendmark">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FAFAF7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab">首页</div>
+    <div class="tab">明细</div>
+    <div class="tab on"><div class="aimark" style="background:#C4321F;">AI</div></div>
+    <div class="tab">报告</div>
+    <div class="tab">设置</div>
+  </div>
+
+</div>
+</body>
+</html>
