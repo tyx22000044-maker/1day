@@ -140,12 +140,13 @@ struct FamilyTaskRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
+                    .font(FamilyTypography.text(.subheadline, .semibold))
                     .strikethrough(item.isCompleted)
                     .foregroundStyle(item.isCompleted ? .secondary : .primary)
 
                 if !item.notes.isEmpty {
                     Text(item.notes)
-                        .font(.caption)
+                        .font(FamilyTypography.text(.caption))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -154,7 +155,8 @@ struct FamilyTaskRow: View {
                     HStack(spacing: 6) {
                         if let dueDate = item.dueDate {
                             Text(dueDate.formatted(.dateTime.month().day()))
-                                .font(.caption2)
+                                .font(FamilyTypography.text(.caption2))
+                                .monospacedDigit()
                                 .foregroundStyle(item.isOverdue(asOf: asOf) ? FamilyUI.danger : .secondary)
                         }
                         if item.reminderTime != nil {

@@ -154,15 +154,17 @@ struct TodayView: View {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
                             Text(localized("今日完成", "Completed today"))
-                            .font(.caption)
+                            .font(FamilyTypography.text(.caption))
+                            .tracking(0.6)
                             .foregroundStyle(.secondary)
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
                             Text("\(snapshot.completedCount)")
-                                .font(.system(size: 34, weight: .black, design: .rounded))
+                                .font(FamilyTypography.fixed(34, .black))
                                 .monospacedDigit()
                                 .foregroundStyle(.primary)
                             Text("/\(snapshot.totalCount)")
-                                .font(.headline.weight(.semibold))
+                                .font(FamilyTypography.text(.headline, .semibold))
+                                .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -171,10 +173,11 @@ struct TodayView: View {
 
                     VStack(alignment: .trailing, spacing: 2) {
                             Text(localized("本周完成", "Completed this week"))
-                            .font(.caption)
+                            .font(FamilyTypography.text(.caption))
+                            .tracking(0.6)
                             .foregroundStyle(.secondary)
                         Text("\(weeklyCompletedCount)")
-                            .font(.title2.weight(.bold))
+                            .font(FamilyTypography.text(.title2, .bold))
                             .monospacedDigit()
                             .foregroundStyle(FamilyUI.accent)
                     }
@@ -186,10 +189,10 @@ struct TodayView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text(isProgressExpanded ? "收起本周趋势" : "查看本周趋势")
+                            .font(FamilyTypography.text(.caption, .semibold))
                         Image(systemName: isProgressExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption2)
                     }
-                    .font(.caption.weight(.semibold))
                     .foregroundStyle(FamilyUI.accent)
                 }
                 .buttonStyle(.plain)
@@ -209,17 +212,18 @@ struct TodayView: View {
                 VStack(spacing: 3) {
                     if count > 0 {
                         Text("\(count)")
-                            .font(.system(size: 9, design: .rounded))
+                            .font(FamilyTypography.fixed(9))
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
                     } else {
                         Text(" ")
-                            .font(.system(size: 9, design: .rounded))
+                            .font(FamilyTypography.fixed(9))
                     }
-                    RoundedRectangle(cornerRadius: 3)
+                    Rectangle()
                         .fill(label == "今" ? FamilyUI.accent : FamilyUI.panelMutedBackground)
                         .frame(height: max(CGFloat(count) / CGFloat(maxCount) * 56, 4))
                     Text(label)
-                        .font(.system(size: 10, design: .rounded))
+                        .font(FamilyTypography.fixed(10))
                         .foregroundStyle(label == "今" ? FamilyUI.accent : Color.secondary)
                         .fontWeight(label == "今" ? .semibold : .regular)
                 }
@@ -306,7 +310,8 @@ struct TodayView: View {
             } label: {
                 HStack(spacing: 4) {
                     Text("已完成 (\(snapshot.completedCount))")
-                        .font(.subheadline.weight(.semibold))
+                        .font(FamilyTypography.text(.subheadline, .semibold))
+                        .monospacedDigit()
                     Spacer()
                     Image(systemName: isCompletedExpanded ? "chevron.down" : "chevron.right")
                         .font(.caption2)
@@ -440,13 +445,13 @@ private struct ScheduleLaterToast: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(FamilyUI.success)
             Text("已加入今天：\(title)")
-                .font(.subheadline)
+                .font(FamilyTypography.text(.subheadline))
                 .lineLimit(1)
             Spacer(minLength: 0)
             Button("稍后安排") {
                 onScheduleLater()
             }
-            .font(.subheadline.weight(.semibold))
+            .font(FamilyTypography.text(.subheadline, .semibold))
             .foregroundStyle(FamilyUI.accent)
         }
         .padding(.horizontal, 16)
@@ -458,6 +463,5 @@ private struct ScheduleLaterToast: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius))
         .padding(.horizontal, 16)
-        .shadow(color: .black.opacity(0.10), radius: 8, y: 4)
     }
 }

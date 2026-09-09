@@ -133,9 +133,10 @@ struct DaySelectorView: View {
             Button { isShowingDatePicker = true } label: {
                 VStack(spacing: 2) {
                     Text(selectedDate.formatted(.dateTime.month().day().weekday(.wide)))
-                        .font(.subheadline.weight(.bold))
+                        .font(FamilyTypography.text(.subheadline, .bold))
+                        .monospacedDigit()
                     Text(isToday ? "TODAY" : "ARCHIVE")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(FamilyTypography.fixed(10, .semibold))
                         .tracking(1)
                         .foregroundStyle(.secondary)
                 }
@@ -187,7 +188,7 @@ private struct AppTabBar: View {
     @Binding var selectedTab: AppTab
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 0) {
             ForEach(AppTab.allCases) { tab in
                 Button {
                     HapticEngine.tap()
@@ -196,34 +197,44 @@ private struct AppTabBar: View {
                     }
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: tab.systemImage)
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .frame(height: 17)
+                        if tab == .ai {
+                            // AI tab: solid accent block mark, per the Swiss Ledger mockups
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(width: 22, height: 22)
+                                .background(FamilyUI.accent)
+                                .foregroundStyle(FamilyUI.paper)
+                        } else {
+                            Image(systemName: tab.systemImage)
+                                .font(.system(size: 16, weight: .semibold))
+                                .frame(height: 17)
+                                .foregroundStyle(selectedTab == tab ? FamilyUI.ink : FamilyUI.subtleText)
+                        }
                         Text(tab.title)
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .font(FamilyTypography.fixed(9, .bold))
+                            .tracking(0.5)
+                            .foregroundStyle(selectedTab == tab ? FamilyUI.ink : FamilyUI.subtleText)
                     }
-                    .foregroundStyle(selectedTab == tab ? .white : .secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 46)
-                    .background(selectedTab == tab ? FamilyUI.accent : FamilyUI.panelMutedBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
-                            .stroke(selectedTab == tab ? Color.black.opacity(0.18) : FamilyUI.panelBorder, lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
+                    .overlay(alignment: .top) {
+                        if selectedTab == tab {
+                            Rectangle()
+                                .fill(tab == .ai ? FamilyUI.accent : FamilyUI.ink)
+                                .frame(height: 2)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
         .background(
             Rectangle()
                 .fill(FamilyUI.panelBackground)
                 .overlay(alignment: .top) {
                     Rectangle()
-                        .fill(FamilyUI.panelBorder)
+                        .fill(FamilyUI.hairlineStrong)
                         .frame(height: 1)
                 }
                 .ignoresSafeArea(edges: .bottom)
