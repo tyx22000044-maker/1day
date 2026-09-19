@@ -454,13 +454,18 @@ enum LocalAIIntentParser {
 
     // Returns true only when the text reads like a task-creation command, not a question or chat.
     static func hasTaskCreationIntent(in text: String) -> Bool {
-        // Questions are never task creation
-        let questionMarkers = ["?", "？", "什么", "怎么", "为什么", "如何", "哪", "是否", "吗", "呢", "吧"]
-        if questionMarkers.contains(where: { text.contains($0) }) { return false }
+        // 真疑问句永远不是创建指令。
+        let strongQuestionMarkers = ["?", "？", "什么", "怎么", "为什么", "如何", "哪", "是否"]
+        if strongQuestionMarkers.contains(where: { text.contains($0) }) { return false }
 
-        // Explicit creation verbs always qualify
+        // 明确创建动词优先：句尾的「吧 / 呢 / 吗」是礼貌语气，
+        // 「帮我安排任务吧」是请求，不是提问。
         let creationVerbs = ["创建", "新建", "记下", "加入计划", "安排", "提醒", "记得", "别忘", "要做", "需要做", "帮我"]
         if creationVerbs.contains(where: { text.contains($0) }) { return true }
+
+        // 没有创建动词兜底时，句尾语气词仍按疑问处理。
+        let politeParticles = ["吗", "呢", "吧"]
+        if politeParticles.contains(where: { text.contains($0) }) { return false }
 
         // Date keyword + action verb = task intent
         let dateKeywords = ["今天", "今日", "明天", "明日", "后天", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "周天", "星期"]

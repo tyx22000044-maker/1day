@@ -1852,3 +1852,39 @@ private func makeTempDirectory() throws -> URL {
     #expect(granted.showsSettingsShortcut == false)
     #expect(granted.message.contains("已开启"))
 }
+
+// MARK: - F-34 创建动词优先于句尾语气词
+
+@Test func politeRequestsStillCountAsTaskCreation() {
+    for text in [
+        "帮我安排任务吧",
+        "记下明天交周报呢",
+        "提醒我周五交报告吧",
+        "新建一个待办好吗",
+        "帮我 submit 这份周报吧",
+    ] {
+        #expect(LocalAIIntentParser.hasTaskCreationIntent(in: text), "礼貌请求应判为创建任务：\(text)")
+    }
+}
+
+@Test func realQuestionsNeverCountAsTaskCreation() {
+    for text in [
+        "这个任务是什么",
+        "今天天气怎么样",
+        "明天要不要开会呢",
+        "你知道周五交报告吗",
+        "为什么要做这个？",
+        "这个 TODO 怎么 submit?",
+    ] {
+        #expect(LocalAIIntentParser.hasTaskCreationIntent(in: text) == false, "疑问句不该判为创建任务：\(text)")
+    }
+}
+
+@Test func plainStatementsKeepTheirExistingBehaviour() {
+    #expect(LocalAIIntentParser.hasTaskCreationIntent(in: "明天交周报"))
+    #expect(LocalAIIntentParser.hasTaskCreationIntent(in: "创建一个待办"))
+
+    let draft = LocalAIIntentParser.parseTask(from: "明天记得交周报吧", referenceDate: .now)
+    let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!
+    #expect(draft?.dueDate.map { Calendar.current.isDate($0, inSameDayAs: tomorrow) } == true)
+}
