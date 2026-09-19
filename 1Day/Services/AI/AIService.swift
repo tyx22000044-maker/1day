@@ -47,10 +47,33 @@ struct AIChatHistoryItem: Codable, Equatable {
     let content: String
 }
 
+/// 外发给服务商的最小上下文。
+///
+/// 刻意不含笔记标题/正文：AI_BEHAVIOR_SPEC §三 把笔记正文列为「默认不发」，
+/// 之前那个从未被填充的 `recentNoteTitles` 字段只会让人以为它在往外发。
 struct AIDataContext: Codable, Equatable {
     var todayTaskTitles: [String] = []
     var upcomingTaskTitles: [String] = []
-    var recentNoteTitles: [String] = []
+}
+
+/// 计划上下文的外发闸门。
+///
+/// AI_BEHAVIOR_SPEC §二 把「擅自读取全部数据」列为禁止项，§三 要求上下文按意图可选注入；
+/// 之前只要配置了 AI，任何一句话都会把本地任务标题打包进 system prompt 发给第三方。
+enum AIContextPolicy {
+    /// 明确指向计划对象才算需要上下文；「今天」「明天」这类时间词单独出现不算，
+    /// 「今天天气怎么样」不应该触发任务标题外发。
+    private static let planMarkers = [
+        "任务", "待办", "计划", "安排", "日程", "提醒", "截止", "复盘", "周报", "清单",
+        "进度", "事项", "task", "Task", "todo", "Todo", "deadline", "schedule"
+    ]
+
+    static func needsPlanContext(for text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if LocalAIIntentParser.hasTaskCreationIntent(in: trimmed) { return true }
+        return planMarkers.contains { trimmed.contains($0) }
+    }
 }
 
 /// Builds the compact, date-aware context sent to the AI service.
@@ -383,8 +406,7 @@ enum AIPromptBuilder {
         if let context {
             let sections: [(String, [String])] = [
                 ("今日任务", context.todayTaskTitles),
-                ("近期任务", context.upcomingTaskTitles),
-                ("最近笔记", context.recentNoteTitles)
+                ("近期任务", context.upcomingTaskTitles)
             ]
             let contextText = sections
                 .filter { !$0.1.isEmpty }
@@ -611,7 +633,7 @@ final class AIChatViewModel {
         // AI 请求路径
         startLoading(images: !imageDataList.isEmpty)
         let aiService = serviceFactory(s)
-        let ctx = buildContext(planItems: planItems, selectedDate: selectedDate)
+        let ctx = buildContext(planItems: planItems, selectedDate: selectedDate, for: text)
 
         requestTask = Task {
             do {
@@ -666,7 +688,7 @@ final class AIChatViewModel {
         requestTask = Task {
             do {
                 let service = serviceFactory(settings)
-                let ctx = buildContext(planItems: planItems, selectedDate: selectedDate)
+                let ctx = buildContext(planItems: planItems, selectedDate: selectedDate, for: text)
                 let response: String
                 if images.isEmpty {
                     response = try await service.sendMessage(text, history: history, context: ctx)
@@ -803,7 +825,9 @@ final class AIChatViewModel {
 
     // MARK: - Context
 
-    private func buildContext(planItems: [PlanItem], selectedDate: Date) -> AIDataContext {
-        PlanAIDataContextBuilder.make(items: planItems, selectedDate: selectedDate)
+    /// 按意图决定是否构建上下文：不需要计划数据的问题，一个字的任务标题都不外发。
+    private func buildContext(planItems: [PlanItem], selectedDate: Date, for text: String) -> AIDataContext? {
+        guard AIContextPolicy.needsPlanContext(for: text) else { return nil }
+        return PlanAIDataContextBuilder.make(items: planItems, selectedDate: selectedDate)
     }
 }

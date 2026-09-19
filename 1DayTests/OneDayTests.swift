@@ -82,6 +82,73 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-10 计划上下文按意图最小化外发
+
+@Test func casualMessagesNeverNeedPlanContext() {
+    for text in ["你好", "谢谢", "今天天气怎么样", "讲个笑话", "你是谁", ""] {
+        #expect(AIContextPolicy.needsPlanContext(for: text) == false, "不该外发任务标题：\(text)")
+    }
+}
+
+@Test func planRelatedMessagesNeedPlanContext() {
+    for text in ["我今天还有什么任务", "帮我看看这周的安排", "明天提交周报", "本周复盘"] {
+        #expect(AIContextPolicy.needsPlanContext(for: text), "该带上下文却没带：\(text)")
+    }
+}
+
+@Test @MainActor func contextIsOnlySentWhenTheMessageActuallyNeedsIt() async throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+    context.insert(PlanItem(title: "内部代号-朱雀", dueDate: Calendar.current.startOfDay(for: .now)))
+    try context.save()
+    let planItems = try context.fetch(FetchDescriptor<PlanItem>())
+
+    let service = ScriptedAIService(results: [.success("你好"), .success("你今天有 1 个任务")])
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+
+    // 普通问候：请求体里一个任务标题都不该出现。
+    viewModel.inputText = "你好"
+    viewModel.send(
+        imageDataList: [],
+        messages: [],
+        settings: settings,
+        planItems: planItems,
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 150_000_000)
+    #expect(service.capturedContexts.count == 1)
+    #expect(service.capturedContexts[0] == nil)
+
+    // 计划类问题：这时才注入摘要。
+    viewModel.inputText = "我今天还有什么任务"
+    viewModel.send(
+        imageDataList: [],
+        messages: [],
+        settings: settings,
+        planItems: planItems,
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 150_000_000)
+    #expect(service.capturedContexts.count == 2)
+    #expect(service.capturedContexts[1]?.todayTaskTitles.contains("内部代号-朱雀") == true)
+}
+
+@Test func promptNeverCarriesNoteContent() throws {
+    // 上下文结构本身就不该有笔记字段（spec §三：笔记正文默认不发）。
+    let messages = AIPromptBuilder.makeMessages(
+        text: "整理一下",
+        history: [],
+        context: AIDataContext(todayTaskTitles: ["交房租"], upcomingTaskTitles: []),
+        language: "zh-Hans"
+    )
+    let system = messages.first?.content ?? ""
+    #expect(system.contains("交房租"))
+    #expect(!system.contains("最近笔记"))
+}
+
 // MARK: - F-09 结构化意图解码
 
 @Test func decodesStructuredCreateTaskFromFencedJSON() throws {
@@ -223,6 +290,7 @@ private func makeInMemoryContainer() throws -> ModelContainer {
 private final class ScriptedAIService: AIService, @unchecked Sendable {
     private let results: [Result<String, Error>]
     private(set) var callCount = 0
+    private(set) var capturedContexts: [AIDataContext?] = []
 
     init(results: [Result<String, Error>]) {
         self.results = results
@@ -231,6 +299,7 @@ private final class ScriptedAIService: AIService, @unchecked Sendable {
     func sendMessage(_ text: String, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
         let index = min(callCount, results.count - 1)
         callCount += 1
+        capturedContexts.append(context)
         switch results[index] {
         case .success(let reply): return reply
         case .failure(let error): throw error
