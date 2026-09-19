@@ -14,16 +14,16 @@ struct AIConfigurationHeader: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                 .fill(FamilyUI.panelMutedBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                         .stroke(FamilyUI.panelBorder, lineWidth: 1)
                 )
                 .frame(width: FamilyUI.iconBoxSize, height: FamilyUI.iconBoxSize)
                 .overlay(
                     Image(systemName: isConfigured ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(isConfigured ? FamilyUI.success : FamilyUI.warning)
                 )
 
@@ -221,17 +221,17 @@ private struct AITextMessageBubble: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(isUser ? Color.white.opacity(0.18) : FamilyUI.panelMutedBackground)
+                .background(isUser ? FamilyUI.paper.opacity(0.18) : FamilyUI.panelMutedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: FamilyUI.badgeCornerRadius))
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(isUser ? Color.black : FamilyUI.panelBackground)
-        .foregroundStyle(isUser ? Color.white : Color.primary)
+        .background(isUser ? FamilyUI.ink : FamilyUI.panelBackground)
+        .foregroundStyle(isUser ? FamilyUI.paper : FamilyUI.ink)
         .overlay(
             RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
-                .stroke(isUser ? Color.black.opacity(0.18) : FamilyUI.panelBorder, lineWidth: 1)
+                .stroke(isUser ? FamilyUI.ink.opacity(0.18) : FamilyUI.panelBorder, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius))
     }
@@ -257,7 +257,7 @@ struct NoteKeywordChips: View {
                             .padding(.vertical, 5)
                             .background(color.opacity(0.14))
                             .foregroundStyle(color)
-                            .clipShape(Capsule())
+                            .clipShape(RoundedRectangle(cornerRadius: FamilyUI.badgeCornerRadius))
                     }
                 }
             }
@@ -300,16 +300,16 @@ struct AIEmptyState: View {
         VStack(alignment: .leading, spacing: 16) {
             SystemPanel {
                 HStack(alignment: .top, spacing: 14) {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                         .fill(FamilyUI.panelMutedBackground)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                                 .stroke(FamilyUI.panelBorder, lineWidth: 1)
                         )
                         .frame(width: 54, height: 54)
                         .overlay(
                             Image(systemName: "sparkles")
-                                .font(.system(size: 22, weight: .black, design: .rounded))
+                                .font(.system(size: 22, weight: .black))
                                 .foregroundStyle(FamilyUI.accent)
                         )
 
@@ -371,8 +371,8 @@ private struct AISetupNoticeCard: View {
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(Color.black)
-                    .foregroundStyle(.white)
+                    .background(FamilyUI.ink)
+                    .foregroundStyle(FamilyUI.paper)
                     .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
             }
             .buttonStyle(.plain)
@@ -394,16 +394,16 @@ private struct AIFeatureCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                 .fill(FamilyUI.panelMutedBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                         .stroke(FamilyUI.panelBorder, lineWidth: 1)
                 )
                 .frame(width: FamilyUI.iconBoxSize, height: FamilyUI.iconBoxSize)
                 .overlay(
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(FamilyUI.accent)
                 )
 

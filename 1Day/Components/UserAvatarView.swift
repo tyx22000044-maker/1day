@@ -32,7 +32,7 @@ struct UserAvatarView: View {
                                 .stroke(FamilyUI.panelBorder, lineWidth: 1)
                         )
                     Image(systemName: symbolName)
-                        .font(.system(size: size * 0.48, design: .rounded))
+                        .font(.system(size: size * 0.48, weight: .semibold))
                         .foregroundStyle(FamilyUI.accent)
                 }
             } else if !name.isEmpty {

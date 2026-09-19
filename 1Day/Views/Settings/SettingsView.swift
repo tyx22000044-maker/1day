@@ -574,7 +574,7 @@ private struct InAppMessageCard: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(FamilyUI.accent)
-                                .clipShape(Capsule())
+                                .clipShape(RoundedRectangle(cornerRadius: FamilyUI.badgeCornerRadius))
                         }
 
                         Spacer()
@@ -622,16 +622,16 @@ private struct StaticInfoView: View {
                         if index > 0 { SystemPanelDivider() }
 
                         HStack(alignment: .top, spacing: 12) {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                                 .fill(FamilyUI.panelMutedBackground)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                                         .stroke(FamilyUI.panelBorder, lineWidth: 1)
                                 )
                                 .frame(width: FamilyUI.iconBoxSize, height: FamilyUI.iconBoxSize)
                                 .overlay(
                                     Image(systemName: section.icon)
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .font(.system(size: 14, weight: .semibold))
                                         .foregroundStyle(FamilyUI.accent)
                                 )
 
@@ -733,13 +733,13 @@ private struct ProfileSettingsView: View {
                                         name: nickname,
                                         size: 108
                                     )
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.black)
+                                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
+                                        .fill(FamilyUI.ink)
                                         .frame(width: 30, height: 30)
                                         .overlay(
                                             Image(systemName: "camera.fill")
                                                 .font(.system(size: 12, weight: .semibold))
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(FamilyUI.paper)
                                         )
                                 }
                             }
@@ -983,8 +983,8 @@ private struct AIConfigurationSettingsView: View {
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color(.systemGray4) : Color.black)
-                        .foregroundStyle(.white)
+                        .background(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? FamilyUI.panelMutedBackground : FamilyUI.ink)
+                        .foregroundStyle(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? FamilyUI.subtleText : FamilyUI.paper)
                         .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
                 }
                 .buttonStyle(.plain)

@@ -1,46 +1,60 @@
 # 1Day
 
-1Day 是一款 SwiftUI 个人计划与笔记 App。它负责 1App Family 中“未来要做的事”和“正在思考的内容”：任务、日程、笔记、想法和复盘。
+1Day 是 1App Family 中负责「今天要做什么」的本地优先 SwiftUI App：用任务、提醒、笔记和可选的 AI 草稿，把日常计划收进一个安静的工作台。
 
 ## 当前状态
 
-项目处在 V1.0 MVP 骨架阶段。当前已具备 5 Tab 基础结构、SwiftData 模型、今日视图、计划列表、笔记列表、Onboarding、设置页和家族统一 AI 服务骨架。通知、完整任务编辑、AI 创建任务、JSON 备份恢复和本地化仍在 MVP 范围内继续推进。
+当前仓库是可运行的 V1.0 MVP，包含 Today、Plan、AI、Notes、Settings 五个 Tab，以及 Onboarding、SwiftData 本地存储、任务提醒、笔记搜索、JSON 备份恢复、个人资料和多服务商 AI 配置。AI 生成的任务必须经过用户确认才会写入数据层。
+
+V1.0 的功能边界以 [`docs/MVP_SCOPE.md`](docs/MVP_SCOPE.md) 为准；其中列出的收藏集、标签、子任务、日历、重复任务、iCloud 同步和账号系统不属于当前版本。
+
+## Swiss Ledger 视觉契约
+
+1Day 使用 1App Family 共用的 Swiss Ledger 视觉系统，token 位于 `1Day/Extensions.swift`：
+
+- 冷纸张背景 `#FAFAF7`、主墨色 `#0B0B0A`，深色模式使用对应的反转纸张/墨色。
+- 正文和标题优先使用随 App 打包的 Archivo，通过 `FamilyTypography` 统一字号和字重；SF Symbols 保持系统图标字体。
+- 面板、输入框、状态徽标使用 `FamilyUI` 的 0–2pt 几何圆角；优先矩形、细边框和网格分隔，不使用阴影或胶囊式标签。
+- `#C4321F` 是主要印刷红；成功、警告和危险色只用于小范围语义提示，不替代页面中性层级。
+- 页面、面板、按钮、输入和状态组件应复用 `FamilyUI`、`FamilyTypography`、`SystemPanel` 和 `SystemStatusBadge`，不要在页面中新增独立颜色或尺寸 token。
 
 ## 技术栈
 
-- iOS / SwiftUI
-- SwiftData
-- Keychain Services
-- UserNotifications
-- Speech
+- iOS 17+ / SwiftUI / SwiftData
+- Keychain Services / UserNotifications / Speech
 - 多 AI 服务商 HTTP Client：ChatGPT、Claude、Kimi、通义千问、豆包、腾讯混元
 
 ## 目录结构
 
-- `1Day/1Day/`：App 主源码
-- `1Day/1Day/Models/`：SwiftData 模型和共享类型
-- `1Day/1Day/Services/`：业务服务、AI、图片、通知、备份
-- `1Day/1Day/Views/`：Today、Plan、AIChat、Notes、Onboarding、Settings 等页面
-- `1Day/docs/MVP_SCOPE.md`：当前版本范围
-- `1Day/docs/DATA_MODEL.md`：数据模型定义
-- `1Day/docs/UX_FLOW.md`：用户流程
-- `1Day/PRD.md`：产品需求文档
+- `1Day/`：App 主源码、资源和字体
+- `1Day/Models/`：SwiftData 模型和共享类型
+- `1Day/Services/`：业务服务、AI、图片、通知和备份
+- `1Day/Views/`：Today、Plan、AIChat、Notes、Onboarding、Settings 等页面
+- `docs/MVP_SCOPE.md`：当前版本范围与后续规划
+- `docs/DATA_MODEL.md`：数据模型定义
+- `docs/UX_FLOW.md`：用户流程
+- `PRD.md`：产品需求文档
 
 ## 运行方式
 
-1. 用 Xcode 打开 `1Day/1Day.xcodeproj`
-2. 选择 `1Day` scheme
-3. 选择真机或模拟器
-4. 点击 Run
+1. 用 Xcode 打开 `1Day.xcodeproj`。
+2. 选择 `1Day` scheme 和 iOS 17+ 真机或模拟器。
+3. 点击 Run。
 
-当前部署版本为 iOS 17.0。
+命令行构建（不需要代码签名）：
+
+```bash
+xcodebuild -project 1Day.xcodeproj -scheme 1Day \
+  -destination 'generic/platform=iOS Simulator' \
+  -configuration Debug CODE_SIGNING_ALLOWED=NO build
+```
 
 ## 重要限制
 
-- V1.0 只做任务和独立笔记，不做事件、日历、重复任务、收藏集、标签、证件管理和复盘模型。
-- AI API Key 存在 iOS Keychain；AI 只生成草稿，必须用户确认后才写入 SwiftData。
-- 数据默认本地保存；V1.0 不接入 iCloud 同步和账号系统。
-- 当前界面文案主要是中文，本地化仍在 MVP 范围内推进。
+- 数据默认保存在本机 SwiftData；当前不接入 iCloud 同步、账号系统或跨 App 数据互通。
+- AI API Key 存在 iOS Keychain，不写入 JSON 备份；AI 输出可能遗漏或误解输入，保存前应自行核对。
+- 本地通知依赖用户授权；系统拒绝通知权限时，任务和笔记仍可正常使用。
+- 当前界面文案以中文为主，完整本地化不属于本次 MVP 收口范围。
 
 ## 文档索引
 

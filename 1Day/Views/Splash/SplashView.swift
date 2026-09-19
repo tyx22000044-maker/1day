@@ -33,19 +33,18 @@ struct SplashView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 92, height: 92)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
                             .scaleEffect(logoScale)
                             .opacity(logoOpacity)
                     }
-                    .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 12)
 
                 VStack(spacing: 6) {
                     Text(appName)
                         .font(FamilyTypography.hero)
                         .monospacedDigit()
                     Text("任务、计划与笔记整理")
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(FamilyTypography.text(.subheadline, .semibold))
+                        .foregroundStyle(FamilyUI.subtleText)
                 }
                     .opacity(textOpacity)
             }

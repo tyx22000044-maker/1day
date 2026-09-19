@@ -298,7 +298,7 @@ struct AIChatView: View {
                         .fontWeight(.semibold)
                         .frame(width: 38, height: 38)
                         .background(speechController.isRecording ? FamilyUI.danger : FamilyUI.panelMutedBackground)
-                        .foregroundStyle(speechController.isRecording ? Color.white : Color.primary)
+                        .foregroundStyle(speechController.isRecording ? FamilyUI.paper : FamilyUI.ink)
                         .overlay(
                             RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                                 .stroke(FamilyUI.panelBorder, lineWidth: 1)
@@ -329,10 +329,10 @@ struct AIChatView: View {
 
                 Button(action: send) {
                     Image(systemName: viewModel.isLoading ? "stop.fill" : "arrow.up")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(FamilyUI.paper)
                         .frame(width: 38, height: 38)
-                        .background(Color.black)
+                        .background(FamilyUI.ink)
                         .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
                 }
                 .buttonStyle(.plain)
@@ -456,7 +456,6 @@ private struct UndoCratedToast: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius))
         .padding(.horizontal, 16)
-        .shadow(color: .black.opacity(0.10), radius: 8, y: 4)
     }
 }
 

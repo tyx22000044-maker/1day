@@ -103,7 +103,7 @@ struct OnboardingView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 76, height: 76)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
                 }
                 .padding(.top, 24)
 
@@ -363,7 +363,7 @@ struct OnboardingView: View {
     private var readyStep: some View {
         VStack(spacing: 24) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 72, design: .rounded))
+                .font(.system(size: 72, weight: .bold))
                 .foregroundStyle(FamilyUI.success)
                 .padding(.top, 24)
 
@@ -534,9 +534,9 @@ private struct OnboardingProgressBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule()
+                Rectangle()
                     .fill(FamilyUI.panelMutedBackground)
-                Capsule()
+                Rectangle()
                     .fill(FamilyUI.accent)
                     .frame(width: geo.size.width * CGFloat(currentStep + 1) / CGFloat(totalSteps))
                     .animation(.easeInOut(duration: 0.22), value: currentStep)
@@ -553,7 +553,7 @@ private struct OnboardingStepHeader: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(title)
-                .font(.largeTitle.weight(.black))
+                .font(FamilyTypography.text(.largeTitle, .black))
                 .multilineTextAlignment(.center)
                 .minimumScaleFactor(0.82)
 
@@ -578,10 +578,10 @@ private struct OnboardingFeatureRow: View {
                 .frame(width: 30, height: 30)
                 .background(FamilyUI.accent.opacity(0.12))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                         .stroke(FamilyUI.accent.opacity(0.18), lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
 
             Text(text)
                 .font(.subheadline.weight(.medium))

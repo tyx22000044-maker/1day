@@ -45,22 +45,22 @@ struct AppErrorBanner: View {
         VStack {
             if isVisible {
                 HStack(alignment: .top, spacing: 12) {
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                         .fill(Color.white.opacity(0.16))
                         .frame(width: FamilyUI.iconBoxSize, height: FamilyUI.iconBoxSize)
                         .overlay(
                             Image(systemName: tone.icon)
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(tone.foreground)
                         )
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title)
-                            .font(.subheadline.weight(.bold))
+                        .font(FamilyTypography.text(.subheadline, .bold))
                             .foregroundStyle(tone.foreground)
                         if let message, !message.isEmpty {
                             Text(message)
-                                .font(.caption)
+                                .font(FamilyTypography.text(.caption))
                                 .foregroundStyle(tone.foreground.opacity(0.84))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -72,7 +72,7 @@ struct AppErrorBanner: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.caption.weight(.black))
+                            .font(FamilyTypography.text(.caption, .black))
                             .foregroundStyle(tone.foreground.opacity(0.78))
                             .frame(width: 28, height: 28)
                     }
