@@ -130,6 +130,11 @@ struct FamilyTaskRow: View {
     let item: PlanItem
     let asOf: Date
     var showsScheduleDetails = false
+    var language: AppLanguage = .system
+
+    private var overdueLabel: String {
+        item.isOverdue(asOf: asOf) ? AppSettingsLocalization.text("过期", "Overdue", language: language) : ""
+    }
 
     var body: some View {
         HStack(spacing: AppSpacing.rowIconSpacing) {
@@ -154,7 +159,7 @@ struct FamilyTaskRow: View {
                 if showsScheduleDetails {
                     HStack(spacing: 6) {
                         if let dueDate = item.dueDate {
-                            Text(dueDate.formatted(.dateTime.month().day()))
+                            Text(dueDate.shortDate(in: language.locale))
                                 .font(FamilyTypography.text(.caption2))
                                 .monospacedDigit()
                                 .foregroundStyle(item.isOverdue(asOf: asOf) ? FamilyUI.danger : .secondary)
@@ -177,7 +182,7 @@ struct FamilyTaskRow: View {
             }
 
             if item.isOverdue(asOf: asOf) {
-                SystemStatusBadge(text: "过期", tone: .danger)
+                SystemStatusBadge(text: overdueLabel, tone: .danger)
             }
         }
         .padding(.vertical, 8)

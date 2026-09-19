@@ -45,6 +45,7 @@ struct ContentView: View {
                     hour: s.defaultReminderHour,
                     minute: s.defaultReminderMinute
                 )
+                NotificationService.syncInterfaceLanguage(s.language)
             }
         }
         .onChange(of: currentSettings?.isHapticsEnabled) { _, _ in
@@ -103,7 +104,7 @@ struct ContentView: View {
             }
             .padding(.bottom, 64)
 
-            AppTabBar(selectedTab: Bindable(appViewModel).selectedTab)
+            AppTabBar(selectedTab: Bindable(appViewModel).selectedTab, language: currentSettings?.language ?? .system)
         }
         .background(FamilyUI.pageBackground)
         .environment(appViewModel)
@@ -229,9 +230,12 @@ struct StorageRiskBanner: View {
 
 struct DaySelectorView: View {
     @Binding var selectedDate: Date
+    @Query private var settings: [UserSettings]
     @State private var isShowingDatePicker = false
 
     private var isToday: Bool { Calendar.current.isDateInToday(selectedDate) }
+    private var language: AppLanguage { settings.first?.language ?? .system }
+    private var locale: Locale { language.locale }
 
     var body: some View {
         HStack {
@@ -246,10 +250,10 @@ struct DaySelectorView: View {
 
             Button { isShowingDatePicker = true } label: {
                 VStack(spacing: 2) {
-                    Text(selectedDate.formatted(.dateTime.month().day().weekday(.wide)))
+                    Text(selectedDate.dayHeading(in: locale))
                         .font(FamilyTypography.text(.subheadline, .bold))
                         .monospacedDigit()
-                    Text(isToday ? "TODAY" : "ARCHIVE")
+                    Text(AppSettingsLocalization.text(isToday ? "今天" : "归档", isToday ? "TODAY" : "ARCHIVE", language: language))
                         .font(FamilyTypography.fixed(10, .semibold))
                         .tracking(1)
                         .foregroundStyle(.secondary)
@@ -259,14 +263,21 @@ struct DaySelectorView: View {
             .buttonStyle(.plain)
             .sheet(isPresented: $isShowingDatePicker) {
                 NavigationStack {
-                    DatePicker("选择日期", selection: $selectedDate, in: ...Date.now, displayedComponents: .date)
+                    DatePicker(
+                        AppSettingsLocalization.text("选择日期", "Choose a date", language: language),
+                        selection: $selectedDate,
+                        in: ...Date.now,
+                        displayedComponents: .date
+                    )
                         .datePickerStyle(.graphical)
                         .padding()
-                        .navigationTitle("选择日期")
+                        .navigationTitle(AppSettingsLocalization.text("选择日期", "Choose a date", language: language))
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
-                                Button("完成") { isShowingDatePicker = false }
+                                Button(AppSettingsLocalization.text("完成", "Done", language: language)) {
+                                    isShowingDatePicker = false
+                                }
                             }
                         }
                 }
@@ -300,6 +311,7 @@ struct DaySelectorView: View {
 
 private struct AppTabBar: View {
     @Binding var selectedTab: AppTab
+    let language: AppLanguage
 
     var body: some View {
         HStack(spacing: 0) {
@@ -324,7 +336,7 @@ private struct AppTabBar: View {
                                 .frame(height: 17)
                                 .foregroundStyle(selectedTab == tab ? FamilyUI.ink : FamilyUI.subtleText)
                         }
-                        Text(tab.title)
+                        Text(tab.title(for: language))
                             .font(FamilyTypography.fixed(9, .bold))
                             .tracking(0.5)
                             .foregroundStyle(selectedTab == tab ? FamilyUI.ink : FamilyUI.subtleText)

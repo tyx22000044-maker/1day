@@ -30,6 +30,102 @@ enum AppSettingsLocalization {
     }
 }
 
+extension AppLanguage {
+    /// 界面语言和日期格式要一起走，否则切到英文还是「7月1日 星期三」。
+    var locale: Locale {
+        switch self {
+        case .english: return Locale(identifier: "en_US")
+        case .zhHans: return Locale(identifier: "zh_CN")
+        case .system: return .autoupdatingCurrent
+        }
+    }
+}
+
+/// 用户可见文案的单一来源。中文是主语言，英文按 `docs/APP_COPY.md` 对齐。
+///
+/// 之前每个页面各自把中英两份字符串散在调用点上（`localized("今天", "Today")`），
+/// 漏掉一处就是切英文后中英混排。这里先收口主流程的可见文案；
+/// 设置页深层文案、AI 提示词和站内信仍是中文优先，见 MVP_SCOPE 的本地化说明。
+enum AppText {
+    enum Key: String, CaseIterable {
+        case tabToday, tabPlan, tabAI, tabNotes, tabSettings
+        case navToday, navPlan, navNotes, navSettings
+        case groupUnscheduled, groupOverdue, groupToday, groupTomorrow, groupThisWeek, groupLater
+        case sectionCompleted, sectionCompletedToday, sectionCompletedThisWeek
+        case trendExpand, trendCollapse
+        case quickInputPlaceholder, taskCountSuffix, noteCountSuffix
+        case createTask, createNote, save, cancel, delete, undo, priorityLabel
+        case emptyTodayTitle, emptyTodaySubtitle
+        case emptyPlanTitle, emptyPlanSubtitle
+        case emptyNotesTitle, emptyNotesSubtitle, emptySearchTitle, emptySearchSubtitle
+        case scheduleLater, addedToToday
+        case rowComplete, rowUncomplete, rowMoveToUnscheduled, rowSetDate, deleteTask, deleteNote
+        case notifyTodayBody, notifyTomorrowBody, notifyWeekdayBody
+        case notifyImportantPrefix, notifyTodayHigh, notifyTomorrowHigh, notifyWeekdayHigh
+    }
+
+    private static let table: [Key: (zh: String, en: String)] = [
+        .tabToday: ("今天", "Today"),
+        .tabPlan: ("计划", "Plan"),
+        .tabAI: ("AI", "AI"),
+        .tabNotes: ("笔记", "Notes"),
+        .tabSettings: ("设置", "Settings"),
+        .navToday: ("今天", "Today"),
+        .navPlan: ("计划", "Plan"),
+        .navNotes: ("笔记", "Notes"),
+        .navSettings: ("设置", "Settings"),
+        .groupUnscheduled: ("未安排", "Unscheduled"),
+        .groupOverdue: ("已过期", "Overdue"),
+        .groupToday: ("今天", "Today"),
+        .groupTomorrow: ("明天", "Tomorrow"),
+        .groupThisWeek: ("本周", "This Week"),
+        .groupLater: ("更晚", "Later"),
+        .sectionCompleted: ("已完成", "Done"),
+        .sectionCompletedToday: ("今日完成", "Completed today"),
+        .sectionCompletedThisWeek: ("本周完成", "This week"),
+        .trendExpand: ("查看本周趋势", "See weekly trend"),
+        .trendCollapse: ("收起本周趋势", "Hide weekly trend"),
+        .quickInputPlaceholder: ("记下一件事…", "Jot down one thing…"),
+        .taskCountSuffix: ("项", "tasks"),
+        .noteCountSuffix: ("条", "notes"),
+        .createTask: ("创建任务", "New task"),
+        .createNote: ("创建笔记", "New note"),
+        .save: ("保存", "Save"),
+        .cancel: ("取消", "Cancel"),
+        .delete: ("删除", "Delete"),
+        .undo: ("撤销", "Undo"),
+        .priorityLabel: ("优先级", "Priority"),
+        .emptyTodayTitle: ("没有待办事项", "Nothing scheduled"),
+        .emptyTodaySubtitle: ("在上方输入框记下一件事，或点击 + 创建", "Type above, or tap + to add a task"),
+        .emptyPlanTitle: ("还没有任何任务", "No tasks yet"),
+        .emptyPlanSubtitle: ("点击 + 创建你的第一个任务", "Tap + to create your first task"),
+        .emptyNotesTitle: ("随手记下你的想法", "Capture what's on your mind"),
+        .emptyNotesSubtitle: ("点击 + 创建一条笔记", "Tap + to start a note"),
+        .emptySearchTitle: ("没有匹配的笔记", "No matching notes"),
+        .emptySearchSubtitle: ("试试搜索标题中的关键词，或正文中的片段", "Try a word from the title or body"),
+        .scheduleLater: ("稍后安排", "Schedule later"),
+        .addedToToday: ("已加入今天", "Added to today"),
+        .rowComplete: ("标记完成", "Mark done"),
+        .rowUncomplete: ("标记未完成", "Mark not done"),
+        .rowMoveToUnscheduled: ("移到未安排", "Move to unscheduled"),
+        .rowSetDate: ("设日期", "Set date"),
+        .deleteTask: ("删除任务", "Delete task"),
+        .deleteNote: ("删除笔记", "Delete note"),
+        .notifyTodayBody: ("今天的待办，别忘了", "Due today — don't forget"),
+        .notifyTomorrowBody: ("明天到期，提前提醒你", "Due tomorrow — a heads-up"),
+        .notifyWeekdayBody: ("到期，记得处理", "is coming up"),
+        .notifyImportantPrefix: ("重要：", "Important: "),
+        .notifyTodayHigh: ("今天必须完成，重要任务", "Due today and important"),
+        .notifyTomorrowHigh: ("明天的重要任务，提前提醒", "Important task due tomorrow"),
+        .notifyWeekdayHigh: ("到期，重要任务", "due soon — high priority")
+    ]
+
+    static func string(_ key: Key, language: AppLanguage) -> String {
+        guard let entry = table[key] else { return key.rawValue }
+        return AppSettingsLocalization.text(entry.zh, entry.en, language: language)
+    }
+}
+
 enum AppearanceMode: String, CaseIterable, Codable, Identifiable, Hashable {
     case system
     case light

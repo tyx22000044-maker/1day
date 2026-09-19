@@ -357,48 +357,19 @@ extension Color {
 // MARK: - Date
 
 extension Date {
-    private static let isoFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
-
-    private static let monthYearFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "M月 yyyy"
-        f.locale = Locale(identifier: "zh_CN")
-        return f
-    }()
-
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "d日 EEEE"
-        f.locale = Locale(identifier: "zh_CN")
-        return f
-    }()
-
-    private static let sectionHeaderFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "M月d日 EEEE"
-        f.locale = Locale(identifier: "zh_CN")
-        return f
-    }()
-
-    var isoDateString: String {
-        Self.isoFormatter.string(from: self)
+    /// 日期文案必须跟随界面语言：之前这几个 formatter 写死 `zh_CN`，
+    /// 切到英文仍然是「7月1日 星期三」。同时删掉了四个从未被调用的
+    /// formatter 属性（`Date.formatted(.dateTime…)` 才是真实的渲染路径）。
+    func dayHeading(in locale: Locale) -> String {
+        formatted(Date.FormatStyle().month().day().weekday(.wide).locale(locale))
     }
 
-    var monthYearDisplay: String {
-        Self.monthYearFormatter.string(from: self)
+    func shortDate(in locale: Locale) -> String {
+        formatted(Date.FormatStyle().month().day().locale(locale))
     }
 
-    var dayDisplay: String {
-        Self.dayFormatter.string(from: self)
-    }
-
-    var sectionHeaderDisplay: String {
-        Self.sectionHeaderFormatter.string(from: self)
+    func weekdayName(in locale: Locale) -> String {
+        formatted(Date.FormatStyle().weekday(.wide).locale(locale))
     }
 
     func isSameMonth(as other: Date) -> Bool {

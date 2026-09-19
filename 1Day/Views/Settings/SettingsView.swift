@@ -339,6 +339,8 @@ struct SettingsView: View {
         } set: { language in
             settings.language = language
             settings.updatedAt = Date()
+            // 通知文案是在调度时生成的，拿不到 SwiftData，需要这一步桥接。
+            NotificationService.syncInterfaceLanguage(language)
         }
     }
 

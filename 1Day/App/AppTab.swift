@@ -9,14 +9,17 @@ enum AppTab: Int, CaseIterable, Hashable, Identifiable {
 
     var id: Int { rawValue }
 
-    var title: String {
+    /// Tab 名跟着界面语言走；之前写死中文，切英文后整条 tab bar 都不换。
+    func title(for language: AppLanguage) -> String {
+        let key: AppText.Key
         switch self {
-        case .today: return "今天"
-        case .plan: return "计划"
-        case .ai: return "AI"
-        case .notes: return "笔记"
-        case .settings: return "设置"
+        case .today: key = .tabToday
+        case .plan: key = .tabPlan
+        case .ai: key = .tabAI
+        case .notes: key = .tabNotes
+        case .settings: key = .tabSettings
         }
+        return AppText.string(key, language: language)
     }
 
     var systemImage: String {

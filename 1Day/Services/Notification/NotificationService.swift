@@ -318,6 +318,17 @@ enum NotificationService {
 
     private static let defaultReminderHourKey = "1plan.defaultReminderHour"
     private static let defaultReminderMinuteKey = "1plan.defaultReminderMinute"
+    /// 界面语言的只读镜像。通知文案在调度和扩展回调里生成，拿不到 SwiftData 里的
+    /// UserSettings，只能像默认提醒时间那样走一次 UserDefaults 桥接。
+    private static let interfaceLanguageKey = "1plan.interfaceLanguage"
+
+    static func syncInterfaceLanguage(_ language: AppLanguage) {
+        UserDefaults.standard.set(language.rawValue, forKey: interfaceLanguageKey)
+    }
+
+    static var interfaceLanguage: AppLanguage {
+        AppLanguage(rawValue: UserDefaults.standard.string(forKey: interfaceLanguageKey) ?? "") ?? .system
+    }
 
     private static var defaultReminderHour: Int {
         UserDefaults.standard.object(forKey: defaultReminderHourKey) != nil
@@ -393,14 +404,17 @@ enum NotificationService {
     }
 
     /// 从任务同步读出通知快照。已完成 / 没有日期 / 触发时间已过，一律归为「不该有提醒」。
-    static func reminderRequest(for item: PlanItem) -> ReminderRequest? {
+    static func reminderRequest(
+        for item: PlanItem,
+        language: AppLanguage? = nil
+    ) -> ReminderRequest? {
         guard !item.isCompleted, let dueDate = item.dueDate else { return nil }
         let triggerDate = reminderDate(for: dueDate, reminderTime: item.reminderTime)
         guard triggerDate > Date() else { return nil }
         return ReminderRequest(
             itemID: item.id,
             title: item.title,
-            body: notificationBody(for: item, triggerDate: triggerDate),
+            body: notificationBody(for: item, triggerDate: triggerDate, language: language ?? interfaceLanguage),
             triggerDate: triggerDate
         )
     }
@@ -417,7 +431,11 @@ enum NotificationService {
         ReminderRequest.identifier(for: itemID)
     }
 
-    private static func notificationBody(for item: PlanItem, triggerDate: Date) -> String {
+    private static func notificationBody(
+        for item: PlanItem,
+        triggerDate: Date,
+        language: AppLanguage
+    ) -> String {
         let cal = Calendar.current
         let dueDate = item.dueDate ?? triggerDate
         let isHigh = item.priority == .high
@@ -425,18 +443,20 @@ enum NotificationService {
         let isTomorrow = cal.isDateInTomorrow(dueDate)
 
         if !item.notes.isEmpty {
-            let prefix = isHigh ? "重要：" : ""
+            let prefix = isHigh ? AppText.string(.notifyImportantPrefix, language: language) : ""
             return prefix + item.notes
         }
 
         if isToday {
-            return isHigh ? "今天必须完成，重要任务" : "今天的待办，别忘了"
+            return AppText.string(isHigh ? .notifyTodayHigh : .notifyTodayBody, language: language)
         }
         if isTomorrow {
-            return isHigh ? "明天的重要任务，提前提醒" : "明天到期，提前提醒你"
+            return AppText.string(isHigh ? .notifyTomorrowHigh : .notifyTomorrowBody, language: language)
         }
-        let weekday = dueDate.formatted(.dateTime.weekday(.wide))
-        return isHigh ? "\(weekday)到期，重要任务" : "\(weekday)到期，记得处理"
+        let weekday = dueDate.weekdayName(in: language.locale)
+        let suffix = AppText.string(isHigh ? .notifyWeekdayHigh : .notifyWeekdayBody, language: language)
+        // 中文里「星期三到期」中间不加空格，英文要加。
+        return language == .english ? "\(weekday) \(suffix)" : "\(weekday)\(suffix)"
     }
 
     private static func reminderDate(for dueDate: Date, reminderTime: Date?) -> Date {

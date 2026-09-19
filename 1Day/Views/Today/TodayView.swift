@@ -73,14 +73,24 @@ struct TodayView: View {
     }
 
     private var selectedDate: Date { appViewModel.selectedDate }
+    private var language: AppLanguage { settings.first?.language ?? .system }
+    private var locale: Locale { language.locale }
     private var selectedDateTitle: String {
-        if Calendar.current.isDateInToday(selectedDate) { return localized("今天", "Today") }
+        if Calendar.current.isDateInToday(selectedDate) { return localized(.navToday) }
         if Calendar.current.isDateInYesterday(selectedDate) { return localized("昨天", "Yesterday") }
-        return selectedDate.formatted(.dateTime.month().day().weekday(.wide))
+        return selectedDate.dayHeading(in: locale)
     }
 
     private func localized(_ chinese: String, _ english: String) -> String {
-        AppSettingsLocalization.text(chinese, english, language: settings.first?.language ?? .system)
+        AppSettingsLocalization.text(chinese, english, language: language)
+    }
+
+    private func localized(_ key: AppText.Key) -> String {
+        AppText.string(key, language: language)
+    }
+
+    private func countLabel(_ count: Int, key: AppText.Key) -> String {
+        "\(count) " + localized(key)
     }
 
     var body: some View {
@@ -108,9 +118,9 @@ struct TodayView: View {
                     if snapshot.overdue.isEmpty && snapshot.pending.isEmpty && snapshot.completed.isEmpty {
                         AppEmptyStateView(
                             icon: "checkmark.circle",
-                            title: "\(selectedDateTitle)没有待办事项",
-                            subtitle: "在上方输入框记下一件事，或点击 + 创建",
-                            buttonTitle: "创建任务"
+                            title: "\(selectedDateTitle)\(localized(.emptyTodayTitle))",
+                            subtitle: localized(.emptyTodaySubtitle),
+                            buttonTitle: localized(.createTask)
                         ) {
                             isShowingCreateSheet = true
                         }
@@ -142,7 +152,7 @@ struct TodayView: View {
                     .padding(.bottom, 16)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else if scheduleLaterItem != nil {
-                    ScheduleLaterToast(title: scheduleLaterTitle) {
+                    ScheduleLaterToast(title: scheduleLaterTitle, language: language) {
                         if let item = scheduleLaterItem {
                             PlanItemService.moveToUnscheduled(item)
                         }
@@ -177,7 +187,7 @@ struct TodayView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                            Text(localized("今日完成", "Completed today"))
+                            Text(localized(.sectionCompletedToday))
                             .font(FamilyTypography.text(.caption))
                             .tracking(0.6)
                             .foregroundStyle(.secondary)
@@ -196,7 +206,7 @@ struct TodayView: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                            Text(localized("本周完成", "Completed this week"))
+                            Text(localized(.sectionCompletedThisWeek))
                             .font(FamilyTypography.text(.caption))
                             .tracking(0.6)
                             .foregroundStyle(.secondary)
@@ -212,7 +222,7 @@ struct TodayView: View {
                     HapticEngine.tap()
                 } label: {
                     HStack(spacing: 4) {
-                        Text(isProgressExpanded ? "收起本周趋势" : "查看本周趋势")
+                        Text(isProgressExpanded ? localized(.trendCollapse) : localized(.trendExpand))
                             .font(FamilyTypography.text(.caption, .semibold))
                         Image(systemName: isProgressExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption2)
@@ -228,14 +238,23 @@ struct TodayView: View {
         }
     }
 
+    /// 近 7 天完成趋势的一格。今天单独标记，而不是靠标签文字比对 ——
+    /// 英文里周二的 T 和今天的 T 会撞在一起。
+    private struct TrendDay: Identifiable {
+        let id: Int
+        let label: String
+        let count: Int
+        let isToday: Bool
+    }
+
     private var weekTrendChart: some View {
         let data = last7DaysCompletions()
-        let maxCount = max(data.map(\.1).max() ?? 1, 1)
+        let maxCount = max(data.map(\.count).max() ?? 1, 1)
         return HStack(alignment: .bottom, spacing: 6) {
-            ForEach(data, id: \.0) { label, count in
+            ForEach(data) { day in
                 VStack(spacing: 3) {
-                    if count > 0 {
-                        Text("\(count)")
+                    if day.count > 0 {
+                        Text("\(day.count)")
                             .font(FamilyTypography.fixed(9))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -244,12 +263,12 @@ struct TodayView: View {
                             .font(FamilyTypography.fixed(9))
                     }
                     Rectangle()
-                        .fill(label == "今" ? FamilyUI.accent : FamilyUI.panelMutedBackground)
-                        .frame(height: max(CGFloat(count) / CGFloat(maxCount) * 56, 4))
-                    Text(label)
+                        .fill(day.isToday ? FamilyUI.accent : FamilyUI.panelMutedBackground)
+                        .frame(height: max(CGFloat(day.count) / CGFloat(maxCount) * 56, 4))
+                    Text(day.label)
                         .font(FamilyTypography.fixed(10))
-                        .foregroundStyle(label == "今" ? FamilyUI.accent : Color.secondary)
-                        .fontWeight(label == "今" ? .semibold : .regular)
+                        .foregroundStyle(day.isToday ? FamilyUI.accent : Color.secondary)
+                        .fontWeight(day.isToday ? .semibold : .regular)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -264,7 +283,7 @@ struct TodayView: View {
     private var quickInputPanel: some View {
         SystemPanel {
             HStack(spacing: 10) {
-                TextField("记下一件事…", text: $quickInputText)
+                TextField(localized(.quickInputPlaceholder), text: $quickInputText)
                     .focused($isInputFocused)
                     .onSubmit { createQuickTask() }
 
@@ -273,18 +292,18 @@ struct TodayView: View {
                         Button {
                             createQuickTask()
                         } label: {
-                            Label("今天", systemImage: "sun.max")
+                            Label(localized(.groupToday), systemImage: "sun.max")
                         }
                         Button {
                             let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)!
                             createQuickTask(dueDate: tomorrow)
                         } label: {
-                            Label("明天", systemImage: "sunrise")
+                            Label(localized(.groupTomorrow), systemImage: "sunrise")
                         }
                         Button {
                             createQuickTask(isUnscheduled: true)
                         } label: {
-                            Label("稍后安排", systemImage: "tray")
+                            Label(localized(.scheduleLater), systemImage: "tray")
                         }
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
@@ -301,7 +320,7 @@ struct TodayView: View {
     // MARK: - Sections
 
     private func overdueSection(_ snapshot: TodaySnapshot) -> some View {
-        SystemPanel(title: "已过期", detail: "\(snapshot.overdue.count) 项") {
+        SystemPanel(title: localized(.groupOverdue), detail: countLabel(snapshot.overdue.count, key: .taskCountSuffix)) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(snapshot.overdue.enumerated()), id: \.element.id) { index, item in
                     taskRow(item)
@@ -314,7 +333,7 @@ struct TodayView: View {
     }
 
     private func todaySection(_ snapshot: TodaySnapshot) -> some View {
-        SystemPanel(title: "今天", detail: "\(snapshot.pending.count) 项") {
+        SystemPanel(title: localized(.groupToday), detail: countLabel(snapshot.pending.count, key: .taskCountSuffix)) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(snapshot.pending.enumerated()), id: \.element.id) { index, item in
                     taskRow(item)
@@ -333,7 +352,7 @@ struct TodayView: View {
                 HapticEngine.tap()
             } label: {
                 HStack(spacing: 4) {
-                    Text("已完成 (\(snapshot.completedCount))")
+                    Text("\(localized(.sectionCompleted)) (\(snapshot.completedCount))")
                         .font(FamilyTypography.text(.subheadline, .semibold))
                         .monospacedDigit()
                     Spacer()
@@ -359,7 +378,7 @@ struct TodayView: View {
         NavigationLink {
             TaskDetailView(item: item)
         } label: {
-            TaskRow(item: item, asOf: selectedDate)
+            TaskRow(item: item, asOf: selectedDate, language: language)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -369,7 +388,7 @@ struct TodayView: View {
                 }
                 HapticEngine.success()
             } label: {
-                Label(item.isCompleted ? "标记未完成" : "标记完成",
+                Label(item.isCompleted ? localized(.rowUncomplete) : localized(.rowComplete),
                       systemImage: item.isCompleted ? "circle" : "checkmark.circle.fill")
             }
             if item.isUnscheduled == false && item.dueDate != nil {
@@ -378,13 +397,13 @@ struct TodayView: View {
                         PlanItemService.moveToUnscheduled(item)
                     }
                 } label: {
-                    Label("移到未安排", systemImage: "tray")
+                    Label(localized(.rowMoveToUnscheduled), systemImage: "tray")
                 }
             }
             Button(role: .destructive) {
                 requestTaskDelete(item)
             } label: {
-                Label("删除", systemImage: "trash")
+                Label(localized(.delete), systemImage: "trash")
             }
         }
     }
@@ -456,25 +475,33 @@ struct TodayView: View {
         return allItems.filter { $0.isCompleted && ($0.completedAt ?? .distantPast) >= startOfWeek }.count
     }
 
-    private func last7DaysCompletions() -> [(String, Int)] {
+    /// 星期标签跟着界面语言：中文用单字（日一二三四五六），
+    /// 其他语言走 Calendar 的 short 符号，避免切英文还是看到「三」。
+    private var calendarWeekdaySymbols: [String] {
+        let locale = language.locale
+        guard locale.language.languageCode?.identifier == "en" else {
+            return ["日", "一", "二", "三", "四", "五", "六"]
+        }
+        var calendar = Calendar.current
+        calendar.locale = locale
+        return calendar.shortWeekdaySymbols
+    }
+
+    private func last7DaysCompletions() -> [TrendDay] {
         let cal = Calendar.current
-        return (0..<7).reversed().map { daysAgo in
-            let date = cal.date(byAdding: .day, value: -daysAgo, to: .now)!
+        let symbols = calendarWeekdaySymbols
+        return (0..<7).reversed().compactMap { offsetFromToday -> TrendDay? in
+            let daysAgo = offsetFromToday
+            guard let date = cal.date(byAdding: .day, value: -daysAgo, to: .now) else { return nil }
             let start = cal.startOfDay(for: date)
-            let end = cal.date(byAdding: .day, value: 1, to: start)!
+            guard let end = cal.date(byAdding: .day, value: 1, to: start) else { return nil }
             let count = allItems.filter { item in
                 guard item.isCompleted, let at = item.completedAt else { return false }
                 return at >= start && at < end
             }.count
-            let label: String
-            if daysAgo == 0 {
-                label = "今"
-            } else {
-                let weekday = cal.component(.weekday, from: date)
-                let symbols = ["日", "一", "二", "三", "四", "五", "六"]
-                label = symbols[weekday - 1]
-            }
-            return (label, count)
+            let weekday = cal.component(.weekday, from: date)
+            let label = symbols.indices.contains(weekday - 1) ? symbols[weekday - 1] : "?"
+            return TrendDay(id: daysAgo, label: label, count: count, isToday: daysAgo == 0)
         }
     }
 }
@@ -484,25 +511,31 @@ struct TodayView: View {
 private struct TaskRow: View {
     let item: PlanItem
     let asOf: Date
+    let language: AppLanguage
 
     var body: some View {
-        FamilyTaskRow(item: item, asOf: asOf)
+        FamilyTaskRow(item: item, asOf: asOf, language: language)
     }
 }
 
 private struct ScheduleLaterToast: View {
     let title: String
+    let language: AppLanguage
     let onScheduleLater: () -> Void
+
+    private func localized(_ key: AppText.Key) -> String {
+        AppText.string(key, language: language)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(FamilyUI.success)
-            Text("已加入今天：\(title)")
+            Text("\(localized(.addedToToday))：\(title)")
                 .font(FamilyTypography.text(.subheadline))
                 .lineLimit(1)
             Spacer(minLength: 0)
-            Button("稍后安排") {
+            Button(localized(.scheduleLater)) {
                 onScheduleLater()
             }
             .font(FamilyTypography.text(.subheadline, .semibold))

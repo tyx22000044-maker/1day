@@ -6,6 +6,7 @@ struct PlanListView: View {
     @Environment(AppViewModel.self) private var appViewModel
     @Query(sort: [SortDescriptor(\PlanItem.createdAt, order: .reverse)])
     private var allItems: [PlanItem]
+    @Query private var settings: [UserSettings]
 
     @State private var isShowingCreateSheet = false
     @State private var schedulingItem: PlanItem?
@@ -16,6 +17,16 @@ struct PlanListView: View {
 
     private var selectedDate: Date {
         Calendar.current.startOfDay(for: appViewModel.selectedDate)
+    }
+
+    private var language: AppLanguage { settings.first?.language ?? .system }
+
+    private func localized(_ key: AppText.Key) -> String {
+        AppText.string(key, language: language)
+    }
+
+    private func countLabel(_ count: Int, key: AppText.Key) -> String {
+        "\(count) " + localized(key)
     }
 
     private var groupedItems: [(String, [PlanItem])] {
@@ -59,12 +70,12 @@ struct PlanListView: View {
         }
 
         var groups: [(String, [PlanItem])] = []
-        if !unscheduled.isEmpty { groups.append(("未安排", sorted(unscheduled))) }
-        if !overdue.isEmpty { groups.append(("已过期", sorted(overdue))) }
-        if !todayItems.isEmpty { groups.append(("今天", sorted(todayItems))) }
-        if !tomorrowItems.isEmpty { groups.append(("明天", sorted(tomorrowItems))) }
-        if !thisWeek.isEmpty { groups.append(("本周", sorted(thisWeek))) }
-        if !later.isEmpty { groups.append(("更晚", sorted(later))) }
+        if !unscheduled.isEmpty { groups.append((localized(.groupUnscheduled), sorted(unscheduled))) }
+        if !overdue.isEmpty { groups.append((localized(.groupOverdue), sorted(overdue))) }
+        if !todayItems.isEmpty { groups.append((localized(.groupToday), sorted(todayItems))) }
+        if !tomorrowItems.isEmpty { groups.append((localized(.groupTomorrow), sorted(tomorrowItems))) }
+        if !thisWeek.isEmpty { groups.append((localized(.groupThisWeek), sorted(thisWeek))) }
+        if !later.isEmpty { groups.append((localized(.groupLater), sorted(later))) }
         return groups
     }
 
@@ -76,9 +87,9 @@ struct PlanListView: View {
                     if groups.isEmpty {
                         AppEmptyStateView(
                             icon: "list.bullet",
-                            title: "还没有任何任务",
-                            subtitle: "点击 + 创建你的第一个任务",
-                            buttonTitle: "创建任务"
+                            title: localized(.emptyPlanTitle),
+                            subtitle: localized(.emptyPlanSubtitle),
+                            buttonTitle: localized(.createTask)
                         ) {
                             isShowingCreateSheet = true
                         }
@@ -86,13 +97,13 @@ struct PlanListView: View {
                     }
 
                     ForEach(groups, id: \.0) { group in
-                        SystemPanel(title: group.0, detail: "\(group.1.count) 项") {
+                        SystemPanel(title: group.0, detail: countLabel(group.1.count, key: .taskCountSuffix)) {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(group.1.enumerated()), id: \.element.id) { index, item in
                                     NavigationLink {
                                         TaskDetailView(item: item)
                                     } label: {
-                        PlanItemRow(item: item, asOf: selectedDate)
+                        PlanItemRow(item: item, asOf: selectedDate, language: language)
                                     }
                                     .buttonStyle(.plain)
                                     .contextMenu {
@@ -102,20 +113,20 @@ struct PlanListView: View {
                                             }
                                             HapticEngine.success()
                                         } label: {
-                                            Label(item.isCompleted ? "标记未完成" : "标记完成",
+                                            Label(item.isCompleted ? localized(.rowUncomplete) : localized(.rowComplete),
                                                   systemImage: item.isCompleted ? "circle" : "checkmark.circle.fill")
                                         }
                                         if item.isUnscheduled {
                                             Button {
                                                 schedulingItem = item
                                             } label: {
-                                                Label("设日期", systemImage: "calendar.badge.plus")
+                                                Label(localized(.rowSetDate), systemImage: "calendar.badge.plus")
                                             }
                                         }
                                         Button(role: .destructive) {
                                             requestTaskDelete(item)
                                         } label: {
-                                            Label("删除", systemImage: "trash")
+                                            Label(localized(.delete), systemImage: "trash")
                                         }
                                     }
                                     if index < group.1.count - 1 {
@@ -141,7 +152,7 @@ struct PlanListView: View {
                 .padding(.top, 6)
                 .background(FamilyUI.pageBackground)
             }
-            .navigationTitle("计划")
+            .navigationTitle(localized(.navPlan))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -221,29 +232,41 @@ struct PlanListView: View {
 private struct PlanItemRow: View {
     let item: PlanItem
     let asOf: Date
+    let language: AppLanguage
 
     var body: some View {
-        FamilyTaskRow(item: item, asOf: asOf, showsScheduleDetails: true)
+        FamilyTaskRow(item: item, asOf: asOf, showsScheduleDetails: true, language: language)
     }
 }
 
 private struct QuickScheduleSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Query private var settings: [UserSettings]
     @Bindable var item: PlanItem
     @State private var selectedDate = Date()
+
+    private var language: AppLanguage { settings.first?.language ?? .system }
+
+    private func localized(_ zh: String, _ en: String) -> String {
+        AppSettingsLocalization.text(zh, en, language: language)
+    }
+
+    private func localized(_ key: AppText.Key) -> String {
+        AppText.string(key, language: language)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: AppSpacing.sectionSpacing) {
-                    SystemPanel(title: "为任务选择日期", detail: item.title) {
+                    SystemPanel(title: localized("为任务选择日期", "Pick a date"), detail: item.title) {
                         DatePicker("日期", selection: $selectedDate, displayedComponents: .date)
                             .datePickerStyle(.graphical)
                             .tint(FamilyUI.accent)
                             .frame(maxWidth: .infinity)
                     }
 
-                    SystemPanel(title: "快捷日期") {
+                    SystemPanel(title: localized("快捷日期", "Quick dates")) {
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(quickDates.enumerated()), id: \.offset) { index, entry in
                                 let label = entry.0
@@ -283,10 +306,10 @@ private struct QuickScheduleSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(localized(.cancel)) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("确定") {
+                    Button(localized("确定", "Done")) {
                                                 PlanItemService.updateSchedule(for: item, dueDate: selectedDate)
                         HapticEngine.success()
                         dismiss()
@@ -301,10 +324,10 @@ private struct QuickScheduleSheet: View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         return [
-            ("今天", today),
-            ("明天", cal.date(byAdding: .day, value: 1, to: today)!),
-            ("后天", cal.date(byAdding: .day, value: 2, to: today)!),
-            ("下周一", nextWeekday(2, from: today))
+            (localized("今天", "Today"), today),
+            (localized("明天", "Tomorrow"), cal.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)),
+            (localized("后天", "In 2 days"), cal.date(byAdding: .day, value: 2, to: today) ?? today.addingTimeInterval(172_800)),
+            (localized("下周一", "Next Monday"), nextWeekday(2, from: today))
         ]
     }
 
@@ -323,6 +346,13 @@ private extension Int {
 struct TaskEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query private var settings: [UserSettings]
+
+    private var language: AppLanguage { settings.first?.language ?? .system }
+
+    private func localized(_ key: AppText.Key) -> String {
+        AppText.string(key, language: language)
+    }
 
     let defaultDueDate: Date?
 
@@ -350,9 +380,9 @@ struct TaskEditorSheet: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: AppSpacing.sectionSpacing) {
-                    SystemPanel(title: "任务", detail: "先写下要完成的事情") {
+                    SystemPanel(title: AppSettingsLocalization.text("任务", "Task", language: language), detail: AppSettingsLocalization.text("先写下要完成的事情", "Start with what needs doing", language: language)) {
                         VStack(alignment: .leading, spacing: 12) {
-                            TextField("任务标题", text: $title)
+                            TextField(AppSettingsLocalization.text("任务标题", "Task title", language: language), text: $title)
                                 .focused($isTitleFocused)
                                 .textFieldStyle(.plain)
                                 .padding(.horizontal, 12)
@@ -368,7 +398,7 @@ struct TaskEditorSheet: View {
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 6)
                                 if notes.isEmpty {
-                                    Text("添加备注…")
+                                    Text(AppSettingsLocalization.text("添加备注…", "Add notes…", language: language))
                                         .foregroundStyle(.tertiary)
                                         .padding(.horizontal, 13)
                                         .padding(.vertical, 13)
@@ -381,10 +411,10 @@ struct TaskEditorSheet: View {
                         }
                     }
 
-                    SystemPanel(title: "安排") {
+                    SystemPanel(title: AppSettingsLocalization.text("安排", "Schedule", language: language)) {
                         VStack(alignment: .leading, spacing: 0) {
                             Toggle(isOn: $hasDueDate) {
-                                AppSettingsRow(icon: "calendar", title: "设置日期", subtitle: "为任务安排具体日期")
+                                AppSettingsRow(icon: "calendar", title: AppSettingsLocalization.text("设置日期", "Set a date", language: language), subtitle: AppSettingsLocalization.text("为任务安排具体日期", "Give this task a day", language: language))
                             }
                             .tint(FamilyUI.accent)
 
@@ -407,7 +437,7 @@ struct TaskEditorSheet: View {
                             }
 
                             SystemPanelDivider()
-                            Picker("优先级", selection: $priority) {
+                            Picker(localized(.priorityLabel), selection: $priority) {
                                 ForEach(Priority.allCases) { priority in
                                     Text(priority.displayName).tag(priority)
                                 }
@@ -422,15 +452,15 @@ struct TaskEditorSheet: View {
             }
             .background(FamilyUI.pageBackground.ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("新建任务")
+            .navigationTitle(localized(.createTask))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(localized(.cancel)) { dismiss() }
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                PrimaryButton(title: "保存", isEnabled: !trimmedTitle.isEmpty) {
+                PrimaryButton(title: localized(.save), isEnabled: !trimmedTitle.isEmpty) {
                     save()
                 }
                 .padding(.horizontal, AppSpacing.pageHorizontal)
@@ -463,6 +493,13 @@ struct TaskEditorSheet: View {
 struct TaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query private var settings: [UserSettings]
+
+    private var language: AppLanguage { settings.first?.language ?? .system }
+
+    private func localized(_ zh: String, _ en: String) -> String {
+        AppSettingsLocalization.text(zh, en, language: language)
+    }
 
     @Bindable var item: PlanItem
 
@@ -483,9 +520,9 @@ struct TaskDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.sectionSpacing) {
-                SystemPanel(title: "任务") {
+                SystemPanel(title: localized("任务", "Task")) {
                     VStack(alignment: .leading, spacing: 12) {
-                        TextField("任务标题", text: $item.title)
+                        TextField(localized("任务标题", "Task title"), text: $item.title)
                             .textFieldStyle(.plain)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -506,10 +543,10 @@ struct TaskDetailView: View {
                     }
                 }
 
-                SystemPanel(title: "安排") {
+                SystemPanel(title: localized("安排", "Schedule")) {
                     VStack(alignment: .leading, spacing: 0) {
                         Toggle(isOn: $hasDueDate) {
-                            AppSettingsRow(icon: "calendar", title: "设置日期", subtitle: "为任务安排具体日期")
+                            AppSettingsRow(icon: "calendar", title: localized("设置日期", "Set a date"), subtitle: localized("为任务安排具体日期", "Give this task a day"))
                         }
                         .tint(FamilyUI.accent)
                         .onChange(of: hasDueDate) { _, enabled in
@@ -526,7 +563,7 @@ struct TaskDetailView: View {
 
                             SystemPanelDivider()
                             Toggle(isOn: $hasCustomReminder) {
-                                AppSettingsRow(icon: "bell.fill", title: "自定义提醒时间", subtitle: "为这条任务设置提醒")
+                                AppSettingsRow(icon: "bell.fill", title: localized("自定义提醒时间", "Custom reminder"), subtitle: localized("为这条任务设置提醒", "Remind me about this task"))
                             }
                             .tint(FamilyUI.accent)
                             .onChange(of: hasCustomReminder) { _, enabled in
@@ -544,7 +581,7 @@ struct TaskDetailView: View {
                         }
 
                         SystemPanelDivider()
-                        Picker("优先级", selection: priorityBinding) {
+                        Picker(localized("优先级", "Priority"), selection: priorityBinding) {
                             ForEach(Priority.allCases) { priority in
                                 Text(priority.displayName).tag(priority)
                             }
@@ -561,7 +598,7 @@ struct TaskDetailView: View {
                         } label: {
                             AppSettingsRow(
                                 icon: item.isCompleted ? "circle" : "checkmark.circle.fill",
-                                title: item.isCompleted ? "标记未完成" : "标记完成",
+                                title: item.isCompleted ? localized("标记未完成", "Mark not done") : localized("标记完成", "Mark done"),
                                 iconColor: item.isCompleted ? .secondary : FamilyUI.success,
                                 showsChevron: false
                             )
@@ -573,7 +610,7 @@ struct TaskDetailView: View {
                         Button(role: .destructive) {
                             isShowingDeleteConfirmation = true
                         } label: {
-                            AppSettingsRow(icon: "trash", title: "删除任务", iconColor: FamilyUI.danger)
+                            AppSettingsRow(icon: "trash", title: localized("删除任务", "Delete task"), iconColor: FamilyUI.danger)
                         }
                         .buttonStyle(.plain)
                     }
@@ -584,20 +621,20 @@ struct TaskDetailView: View {
         }
         .background(FamilyUI.pageBackground.ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("任务详情")
+        .navigationTitle(localized("任务详情", "Task details"))
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear {
             PlanItemService.refreshReminder(for: item)
         }
-        .confirmationDialog("删除这条任务？", isPresented: $isShowingDeleteConfirmation, titleVisibility: .visible) {
-            Button("删除", role: .destructive) {
+        .confirmationDialog(localized("删除这条任务？", "Delete this task?"), isPresented: $isShowingDeleteConfirmation, titleVisibility: .visible) {
+            Button(localized("删除", "Delete"), role: .destructive) {
                 HapticEngine.warning()
                 PlanItemService.delete(item, in: modelContext)
                 dismiss()
             }
-            Button("取消", role: .cancel) {}
+            Button(localized("取消", "Cancel"), role: .cancel) {}
         } message: {
-            Text("删除后无法恢复。")
+            Text(localized("删除后无法恢复。", "This cannot be undone."))
         }
     }
 

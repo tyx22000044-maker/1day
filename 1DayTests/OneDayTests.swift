@@ -84,6 +84,62 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-23 界面语言与日期格式
+
+private func containsCJK(_ text: String) -> Bool {
+    text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
+}
+
+@Test func everyAppTextKeyCarriesBothLanguages() {
+    // 表里少一条，界面就会直接露出 key 名，切英文时最容易看到。
+    for key in AppText.Key.allCases {
+        let english = AppText.string(key, language: .english)
+        let chinese = AppText.string(key, language: .zhHans)
+        #expect(!english.isEmpty, "英文为空：\(key.rawValue)")
+        #expect(!chinese.isEmpty, "中文为空：\(key.rawValue)")
+        #expect(english != key.rawValue, "缺英文条目：\(key.rawValue)")
+    }
+}
+
+@Test func appLanguageMapsToItsOwnLocale() {
+    #expect(AppLanguage.english.locale.identifier.hasPrefix("en"))
+    #expect(AppLanguage.zhHans.locale.identifier.hasPrefix("zh"))
+}
+
+@Test func dateHeadingsFollowTheRequestedLocale() {
+    let date = Date(timeIntervalSince1970: 1_751_500_800)
+
+    #expect(containsCJK(date.dayHeading(in: AppLanguage.zhHans.locale)))
+    #expect(!containsCJK(date.dayHeading(in: AppLanguage.english.locale)))
+    #expect(!containsCJK(date.shortDate(in: AppLanguage.english.locale)))
+    #expect(!containsCJK(date.weekdayName(in: AppLanguage.english.locale)))
+}
+
+@Test func notificationBodyIsLocalizedWithoutChangingTheTriggerTime() throws {
+    let future = try #require(Calendar.current.date(byAdding: .day, value: 2, to: .now))
+    let item = PlanItem(
+        title: "交报告",
+        dueDate: Calendar.current.startOfDay(for: future),
+        priority: .high
+    )
+
+    let chinese = try #require(NotificationService.reminderRequest(for: item, language: .zhHans))
+    let english = try #require(NotificationService.reminderRequest(for: item, language: .english))
+
+    #expect(containsCJK(chinese.body))
+    #expect(!containsCJK(english.body))
+    // 换语言只改文案，不能把提醒时间也换掉。
+    #expect(Calendar.current.isDate(chinese.triggerDate, inSameDayAs: english.triggerDate))
+    #expect(chinese.itemID == english.itemID)
+}
+
+@Test func interfaceLanguageBridgeRoundTrips() {
+    let original = NotificationService.interfaceLanguage
+    NotificationService.syncInterfaceLanguage(.english)
+    #expect(NotificationService.interfaceLanguage == .english)
+    NotificationService.syncInterfaceLanguage(original)
+}
+
 // MARK: - F-21 确认删除后的撤销恢复
 
 @Test func deletingThenRestoringATaskKeepsEveryField() throws {

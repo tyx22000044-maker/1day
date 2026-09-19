@@ -5,6 +5,13 @@ struct NotesListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [SortDescriptor(\Note.updatedAt, order: .reverse)])
     private var notes: [Note]
+    @Query private var settings: [UserSettings]
+
+    private var language: AppLanguage { settings.first?.language ?? .system }
+
+    private func localized(_ key: AppText.Key) -> String {
+        AppText.string(key, language: language)
+    }
 
     @State private var searchText = ""
     @State private var debouncedSearchText = ""
@@ -31,9 +38,9 @@ struct NotesListView: View {
                     if filtered.isEmpty && notes.isEmpty {
                         AppEmptyStateView(
                             icon: "note.text",
-                            title: "随手记下你的想法",
-                            subtitle: "点击 + 创建一条笔记",
-                            buttonTitle: "创建笔记"
+                            title: localized(.emptyNotesTitle),
+                            subtitle: localized(.emptyNotesSubtitle),
+                            buttonTitle: localized(.createNote)
                         ) {
                             createNote()
                         }
@@ -41,12 +48,12 @@ struct NotesListView: View {
                     } else if filtered.isEmpty {
                         AppEmptyStateView(
                             icon: "magnifyingglass",
-                            title: "没有匹配的笔记",
-                            subtitle: "试试搜索标题中的关键词，或正文中的片段"
+                            title: localized(.emptySearchTitle),
+                            subtitle: localized(.emptySearchSubtitle)
                         )
                         .padding(.top, 24)
                     } else {
-                        SystemPanel(title: "笔记", detail: "\(filtered.count) 条") {
+                        SystemPanel(title: localized(.navNotes), detail: "\(filtered.count) " + localized(.noteCountSuffix)) {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(filtered.enumerated()), id: \.element.id) { index, note in
                                     NavigationLink {
@@ -59,7 +66,7 @@ struct NotesListView: View {
                                         Button(role: .destructive) {
                                             requestNoteDelete(note)
                                         } label: {
-                                            Label("删除", systemImage: "trash")
+                                            Label(localized(.delete), systemImage: "trash")
                                         }
                                     }
                                     if index < filtered.count - 1 {
@@ -76,9 +83,9 @@ struct NotesListView: View {
             }
             .scrollIndicators(.hidden)
             .background(FamilyUI.pageBackground.ignoresSafeArea())
-            .navigationTitle("笔记")
+            .navigationTitle(localized(.navNotes))
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "搜索笔记")
+            .searchable(text: $searchText, prompt: AppSettingsLocalization.text("搜索笔记", "Search notes", language: language))
             .task(id: searchText) {
                 guard !searchText.isEmpty else {
                     debouncedSearchText = ""
