@@ -55,20 +55,13 @@ struct AIChatView: View {
                     selectedModel: currentSettings?.selectedAIModel ?? defaultModel(for: currentProvider),
                     onSelectProvider: { provider in
                         guard let s = currentSettings else { return }
-                        s.selectedAIProvider = provider
-                        if let option = configService.providerOptions.first(where: { $0.provider == provider }) {
-                            s.selectedAIModel = option.defaultModel
-                        }
-                        s.updatedAt = Date()
+                        AIConfigurationCoordinator.switchProvider(to: provider, on: s, using: configService)
                         try? modelContext.save()
                         HapticEngine.tap()
                     },
                     onSelectModel: { model in
                         guard let s = currentSettings else { return }
-                        let models = configService.providerOptions.first { $0.provider == s.selectedAIProvider }?.models ?? []
-                        guard models.contains(model), s.selectedAIModel != model else { return }
-                        s.selectedAIModel = model
-                        s.updatedAt = Date()
+                        AIConfigurationCoordinator.selectModel(model, on: s, using: configService)
                         try? modelContext.save()
                         HapticEngine.tap()
                     },

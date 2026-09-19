@@ -82,6 +82,52 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-05 服务商切换后 AI 状态必须按 Keychain 重算
+
+private final class InMemoryKeychainService: KeychainService, @unchecked Sendable {
+    private(set) var store: [String: String] = [:]
+
+    func save(_ value: String, account: String) throws { store[account] = value }
+    func read(account: String) throws -> String? { store[account] }
+    func delete(account: String) throws { store[account] = nil }
+}
+
+@Test func providerSwitchRecomputesConfiguredFlagFromKeychain() throws {
+    let service = LocalAIConfigurationService(keychain: InMemoryKeychainService())
+    let settings = UserSettings()
+
+    try service.saveAPIKey("claude-key-1234567890", provider: .claude)
+    settings.selectedAIProvider = .claude
+    settings.isAIConfigured = true
+
+    // 切到本机没有 key 的服务商：状态必须立刻回到「未配置」。
+    let switched = AIConfigurationCoordinator.switchProvider(to: .deepseek, on: settings, using: service)
+    #expect(switched == false)
+    #expect(settings.isAIConfigured == false)
+    #expect(settings.selectedAIModel == "deepseek-chat")
+
+    // 切回 Claude：本机已有的 key 要重新被认出来，不能停在 false。
+    let back = AIConfigurationCoordinator.switchProvider(to: .claude, on: settings, using: service)
+    #expect(back)
+    #expect(settings.isAIConfigured)
+    #expect(settings.selectedAIModel == "claude-sonnet-4-6")
+}
+
+@Test func deletingKeyAndRelaunchingDoesNotLeaveStaleConfiguredFlag() throws {
+    let service = LocalAIConfigurationService(keychain: InMemoryKeychainService())
+    let settings = UserSettings()
+    try service.saveAPIKey("kimi-key-1234567890", provider: .kimi)
+    settings.selectedAIProvider = .kimi
+    settings.isAIConfigured = AIConfigurationCoordinator.revalidate(settings: settings, using: service)
+    #expect(settings.isAIConfigured)
+
+    try service.deleteAPIKey(provider: .kimi)
+    // 模拟重启：启动校准要把上一次运行留下的 true 纠正过来。
+    let revalidated = AIConfigurationCoordinator.revalidate(settings: settings, using: service)
+    #expect(revalidated == false)
+    #expect(settings.isAIConfigured == false)
+}
+
 // MARK: - F-04 备份必须完整覆盖反馈偏好
 
 @Test func feedbackPreferencesSurviveBackupRoundTrip() throws {

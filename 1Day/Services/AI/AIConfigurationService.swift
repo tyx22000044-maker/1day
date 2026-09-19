@@ -146,3 +146,53 @@ struct LocalAIConfigurationService: AIConfigurationService {
         "ai-api-key-\(provider.rawValue)"
     }
 }
+
+/// 服务商 / 模型切换的唯一入口。
+///
+/// `isAIConfigured` 必须反映**当前** provider 在 Keychain 里到底有没有可用 key。
+/// 之前两处切换 UI 只改了 provider 和模型，留下上一个 provider 的布尔值：
+/// 界面显示「已启用」而当前服务商根本没有 key，发送时才失败。
+enum AIConfigurationCoordinator {
+    @discardableResult
+    static func switchProvider(
+        to provider: AIProvider,
+        on settings: UserSettings,
+        using service: AIConfigurationService
+    ) -> Bool {
+        settings.selectedAIProvider = provider
+        if let option = service.providerOptions.first(where: { $0.provider == provider }) {
+            settings.selectedAIModel = option.defaultModel
+        }
+        settings.updatedAt = Date()
+        settings.isAIConfigured = (try? service.validateLocalConfiguration(settings: settings)) ?? false
+        AppLogger.ai("切换服务商 → \(provider.rawValue)，模型 \(settings.selectedAIModel)，已配置 \(settings.isAIConfigured)")
+        return settings.isAIConfigured
+    }
+
+    /// 启动时校准一次：Keychain 可能被系统清理或用户换过服务商，
+    /// 存量的 `isAIConfigured` 不能继续被当作事实。
+    @discardableResult
+    static func revalidate(settings: UserSettings, using service: AIConfigurationService) -> Bool {
+        let configured = (try? service.validateLocalConfiguration(settings: settings)) ?? false
+        if settings.isAIConfigured != configured {
+            settings.isAIConfigured = configured
+            AppLogger.ai("校准 AI 配置状态 → \(configured)")
+        }
+        return configured
+    }
+
+    @discardableResult
+    static func selectModel(
+        _ model: String,
+        on settings: UserSettings,
+        using service: AIConfigurationService
+    ) -> Bool {
+        let models = service.providerOptions.first { $0.provider == settings.selectedAIProvider }?.models ?? []
+        guard models.contains(model), settings.selectedAIModel != model else {
+            return settings.isAIConfigured
+        }
+        settings.selectedAIModel = model
+        settings.updatedAt = Date()
+        return settings.isAIConfigured
+    }
+}

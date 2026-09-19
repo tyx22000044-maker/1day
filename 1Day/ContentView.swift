@@ -39,6 +39,7 @@ struct ContentView: View {
         .onAppear {
             bootstrapIfNeeded()
             applyFeedbackPreferences()
+            revalidateAIConfiguration()
             if let s = settings.first {
                 NotificationService.syncDefaultReminderTime(
                     hour: s.defaultReminderHour,
@@ -127,6 +128,15 @@ struct ContentView: View {
     private func applyFeedbackPreferences() {
         guard let currentSettings else { return }
         FeedbackPreferences.shared.apply(settings: currentSettings)
+    }
+
+    /// 让存量的「AI 已配置」标记重新对齐当前服务商的 Keychain 实际内容。
+    private func revalidateAIConfiguration() {
+        guard let currentSettings else { return }
+        AIConfigurationCoordinator.revalidate(
+            settings: currentSettings,
+            using: LocalAIConfigurationService()
+        )
     }
 }
 

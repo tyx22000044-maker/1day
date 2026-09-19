@@ -1137,14 +1137,17 @@ private struct AIConfigurationSettingsView: View {
         Binding {
             settings.selectedAIProvider
         } set: { provider in
-            settings.selectedAIProvider = provider
-            if let option = configurationService.providerOptions.first(where: { $0.provider == provider }) {
-                settings.selectedAIModel = option.defaultModel
-            }
-            settings.updatedAt = Date()
+            // 走统一入口：isAIConfigured 必须按新 provider 的 Keychain 现状重算。
+            let configured = AIConfigurationCoordinator.switchProvider(
+                to: provider,
+                on: settings,
+                using: configurationService
+            )
+            try? modelContext.save()
             apiKey = ""
-            statusMessage = nil
+            statusMessage = configured ? "已沿用该服务商在本机保存的 Key" : nil
             errorMessage = nil
+            testResultMessage = nil
             loadMaskedKey()
         }
     }
