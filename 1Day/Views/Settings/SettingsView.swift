@@ -798,6 +798,7 @@ private struct ProfileSettingsView: View {
 
 private struct ReminderSettingsView: View {
     @Bindable var settings: UserSettings
+    @Query private var allItems: [PlanItem]
 
     @State private var permissionState: ReminderPermissionState?
 
@@ -818,6 +819,8 @@ private struct ReminderSettingsView: View {
                 hour: settings.defaultReminderHour,
                 minute: settings.defaultReminderMinute
             )
+            // 只改设置不管已排好的通知，用户会以为整个改动没生效。
+            NotificationService.applyDefaultReminderRefresh(for: allItems)
         }
     }
 
@@ -839,6 +842,7 @@ private struct ReminderSettingsView: View {
                                 settings.defaultReminderMinute = 0
                                 settings.updatedAt = Date()
                                 NotificationService.syncDefaultReminderTime(hour: hour, minute: 0)
+                                NotificationService.applyDefaultReminderRefresh(for: allItems)
                                 HapticEngine.success()
                             } label: {
                                 HStack {

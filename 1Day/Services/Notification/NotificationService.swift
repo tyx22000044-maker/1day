@@ -350,6 +350,49 @@ enum NotificationService {
         UserDefaults.standard.set(minute, forKey: defaultReminderMinuteKey)
     }
 
+    /// 默认提醒点变更后，需要跟着重排的任务。
+    struct ReminderRefreshPlan: Equatable {
+        var reschedule: [ReminderRequest] = []
+        var cancelIDs: [UUID] = []
+
+        var affectedCount: Int { reschedule.count + cancelIDs.count }
+    }
+
+    /// 算出「跟随默认提醒」的任务在新默认点下该怎么走，不碰通知中心。
+    ///
+    /// 带自定义 reminderTime 的任务按用户显式设定的时间走，默认值改动不影响它们。
+    static func defaultReminderRefresh(
+        for items: [PlanItem],
+        language: AppLanguage? = nil
+    ) -> ReminderRefreshPlan {
+        var plan = ReminderRefreshPlan()
+        for item in items {
+            guard !item.isCompleted, item.reminderTime == nil, item.dueDate != nil else { continue }
+            if let request = reminderRequest(for: item, language: language) {
+                plan.reschedule.append(request)
+            } else {
+                // 新默认点已经过了：留着旧时间的通知，等于按用户没选的时间提醒。
+                plan.cancelIDs.append(item.id)
+            }
+        }
+        return plan
+    }
+
+    /// 改完默认提醒时间后调用：让已有任务的通知跟上，不只是新任务受益。
+    static func applyDefaultReminderRefresh(for items: [PlanItem]) {
+        let plan = defaultReminderRefresh(for: items)
+        guard plan.affectedCount > 0 else { return }
+        AppLogger.data("Refreshing \(plan.affectedCount) default-time reminders")
+        Task {
+            for itemID in plan.cancelIDs {
+                await NotificationScheduler.shared.cancel(itemID: itemID)
+            }
+            for request in plan.reschedule {
+                await NotificationScheduler.shared.schedule(request)
+            }
+        }
+    }
+
     static func configureCategories() {
         let completeAction = UNNotificationAction(
             identifier: completeActionIdentifier,

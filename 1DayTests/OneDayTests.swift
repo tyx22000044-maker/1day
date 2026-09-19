@@ -1739,3 +1739,70 @@ private func makeTempDirectory() throws -> URL {
             == calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day)
     )
 }
+
+// MARK: - F-31 默认提醒时间变更要重排已有任务
+
+/// 默认提醒点存在 UserDefaults 里，测试必须自己收尾，否则会串到并行执行的其它用例。
+private func withDefaultReminderTime(
+    hour: Int,
+    minute: Int,
+    _ body: () throws -> Void
+) rethrows {
+    let defaults = UserDefaults.standard
+    let hourKey = "1plan.defaultReminderHour"
+    let minuteKey = "1plan.defaultReminderMinute"
+    let oldHour = defaults.object(forKey: hourKey)
+    let oldMinute = defaults.object(forKey: minuteKey)
+    defer {
+        if let oldHour { defaults.set(oldHour, forKey: hourKey) } else { defaults.removeObject(forKey: hourKey) }
+        if let oldMinute { defaults.set(oldMinute, forKey: minuteKey) } else { defaults.removeObject(forKey: minuteKey) }
+    }
+    NotificationService.syncDefaultReminderTime(hour: hour, minute: minute)
+    try body()
+}
+
+@Test func defaultReminderRefreshOnlyTouchesTasksWithoutACustomTime() throws {
+    let calendar = Calendar.current
+    let future = calendar.date(byAdding: .day, value: 2, to: .now)!
+    let followsDefault = PlanItem(title: "跟随默认", dueDate: future)
+    let custom = PlanItem(
+        title: "自定义",
+        dueDate: future,
+        reminderTime: calendar.date(bySettingHour: 7, minute: 30, second: 0, of: future)
+    )
+    let done = PlanItem(title: "已完成", dueDate: future)
+    done.status = .completed
+    let unscheduled = PlanItem(title: "未安排", dueDate: nil)
+
+    try withDefaultReminderTime(hour: 20, minute: 0) {
+        let plan = NotificationService.defaultReminderRefresh(
+            for: [followsDefault, custom, done, unscheduled]
+        )
+
+        #expect(plan.reschedule.map(\.itemID) == [followsDefault.id])
+        #expect(plan.cancelIDs.isEmpty)
+        // 新默认点要落在任务自己的那一天，而不是今天或原始时刻。
+        let trigger = try #require(plan.reschedule.first?.triggerDate)
+        #expect(calendar.isDate(trigger, inSameDayAs: future))
+        #expect(calendar.component(.hour, from: trigger) == 20)
+    }
+}
+
+@Test func defaultReminderRefreshDropsTasksWhoseNewDefaultPointAlreadyPassed() throws {
+    let calendar = Calendar.current
+    let today = calendar.startOfDay(for: .now)
+    let followsDefault = PlanItem(title: "今天到期", dueDate: today.addingTimeInterval(6 * 3_600))
+    let custom = PlanItem(
+        title: "自定义仍在",
+        dueDate: today.addingTimeInterval(6 * 3_600),
+        reminderTime: calendar.date(bySettingHour: 23, minute: 30, second: 0, of: today)
+    )
+
+    try withDefaultReminderTime(hour: 0, minute: 0) {
+        let plan = NotificationService.defaultReminderRefresh(for: [followsDefault, custom])
+
+        // 旧时间的通知必须撤掉：留着等于按用户没选的时间提醒。
+        #expect(plan.reschedule.isEmpty)
+        #expect(plan.cancelIDs == [followsDefault.id])
+    }
+}
