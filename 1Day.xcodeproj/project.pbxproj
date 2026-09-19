@@ -46,6 +46,7 @@
 		9360EF66F8E34928B231CEC6 /* Archivo-500.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2FA4DDCE636C4F79BF65FE0B /* Archivo-500.ttf */; };
 		843AA36F1E1C47E887260F5B /* Archivo-400.ttf in Resources */ = {isa = PBXBuildFile; fileRef = DC099999792C4E85A3017E48 /* Archivo-400.ttf */; };
 		C46F0960940273B70BCA47CF /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A918731C1C34C87899CCB6 /* UserSettings.swift */; };
+		9F48EA4EAEC94445BA98EC5E /* AppSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DC02346DAE04DE4A33C87FC /* AppSchema.swift */; };
 		CD0CAC0143F59AB05ADEF3F3 /* AIClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F2DD5650A424E6CDFE6C6E /* AIClients.swift */; };
 		D5C8E3C5ECC96F397CF9E250 /* AppErrorBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A1CB9E423064350E66877D /* AppErrorBanner.swift */; };
 		D5F4B001DCAD9C7AFB6B87C0 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 288C39CC4D0C1B91CD1D663C /* OnboardingView.swift */; };
@@ -71,6 +72,7 @@
 /* Begin PBXFileReference section */
 		0D2B0EA91326FB6A4987A460 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		0DA1E328124201F65FF199D3 /* NotesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesListView.swift; sourceTree = "<group>"; };
+		4DC02346DAE04DE4A33C87FC /* AppSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSchema.swift; sourceTree = "<group>"; };
 		16625DE93AD610E64A60317E /* AppSettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsRow.swift; sourceTree = "<group>"; };
 		19D4019305E0327EC6C6C6DF /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		26A8CCC9D795EFB2333F299A /* AIChatFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatFormatting.swift; sourceTree = "<group>"; };
@@ -238,6 +240,7 @@
 		69C3CDC5B287794298929DE7 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4DC02346DAE04DE4A33C87FC /* AppSchema.swift */,
 				A06A436B1B493F9A6BD6CA9F /* Note.swift */,
 				5BF7FE572B5EF0BA05112956 /* PlanItem.swift */,
 				B0A4860B53881CD31567B90B /* SharedTypes.swift */,
@@ -474,6 +477,7 @@
 				7CC3DEADC37774FA58E29AAD /* AppSettingsRow.swift in Sources */,
 				9F2C044C40EE86BADA325994 /* AppTab.swift in Sources */,
 				6B49EA064CF2F116CBCA676B /* AppViewModel.swift in Sources */,
+				9F48EA4EAEC94445BA98EC5E /* AppSchema.swift in Sources */,
 				FCD6C4CBF3CA93C689EAF379 /* ContentView.swift in Sources */,
 				1B625C8134BE517D34A79DAD /* Extensions.swift in Sources */,
 				C0DEC0DE0000000000000001 /* GlobalBannerCenter.swift in Sources */,

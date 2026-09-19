@@ -84,6 +84,43 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-18 schema 版本与迁移计划
+
+@Test func schemaRegistersEveryPersistentModel() {
+    let types = AppSchema.modelTypes
+    #expect(types.count == 4)
+    #expect(types.contains { $0 == PlanItem.self })
+    #expect(types.contains { $0 == Note.self })
+    #expect(types.contains { $0 == UserSettings.self })
+    // AIChatMessage 定义在 Services/AI 下，漏登记就会「聊天看着有、重启就没了」。
+    #expect(types.contains { $0 == AIChatMessage.self })
+}
+
+@Test func migrationPlanStartsAtV1WithNoStagesYet() {
+    #expect(OneDaySchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
+    #expect(OneDayMigrationPlan.schemas.count == 1)
+    // 现在没有可迁移的旧版本；改字段时必须在这里补 stage，而不是指望自动兼容。
+    #expect(OneDayMigrationPlan.stages.isEmpty)
+}
+
+@Test func containerReopensTheSameStoreThroughTheMigrationPlanWithoutLosingRows() throws {
+    let directory = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let storeURL = directory.appendingPathComponent("data.sqlite")
+
+    let first = OneDayModelContainer.make(configuration: ModelConfiguration(schema: AppSchema.current, url: storeURL))
+    #expect(first.health == .persisted)
+    let writeContext = ModelContext(first.container)
+    writeContext.insert(Note(title: "迁移计划下的笔记", content: "内容"))
+    try writeContext.save()
+
+    // 重新打开同一个 store：这才是加字段时真正会走的路径。
+    let second = OneDayModelContainer.make(configuration: ModelConfiguration(schema: AppSchema.current, url: storeURL))
+    #expect(second.health == .persisted)
+    let fetched = try ModelContext(second.container).fetch(FetchDescriptor<Note>())
+    #expect(fetched.map(\.title) == ["迁移计划下的笔记"])
+}
+
 // MARK: - F-17 备份版本闸门与字段预检
 
 private func rawBackupItemJSON(

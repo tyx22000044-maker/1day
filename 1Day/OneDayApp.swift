@@ -45,10 +45,8 @@ enum OneDayModelContainer {
         let health: ModelContainerHealth
     }
 
-    /// 唯一的 @Model 注册表；新增模型必须同时加入这里，否则不会被持久化。
-    static var schema: Schema {
-        Schema([PlanItem.self, Note.self, UserSettings.self, AIChatMessage.self])
-    }
+    /// 唯一的 @Model 注册表在 `AppSchema`；新增模型必须先去那里登记，否则不会被持久化。
+    static var schema: Schema { AppSchema.current }
 
     static func make() -> Outcome {
         make(configuration: ModelConfiguration(schema: schema))
@@ -60,7 +58,11 @@ enum OneDayModelContainer {
         let schema = Self.schema
         do {
             return Outcome(
-                container: try ModelContainer(for: schema, configurations: [configuration]),
+                container: try ModelContainer(
+                    for: schema,
+                    migrationPlan: OneDayMigrationPlan.self,
+                    configurations: [configuration]
+                ),
                 health: .persisted
             )
         } catch {
