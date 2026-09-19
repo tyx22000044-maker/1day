@@ -6,6 +6,7 @@ struct OnboardingView: View {
 
     @State private var currentStep = 0
     @State private var notificationStatusMessage: String?
+    @State private var showsNotificationSettingsShortcut = false
     @State private var isRequestingNotificationPermission = false
     @State private var onboardingAPIKey = ""
     @State private var aiConfigurationMessage: String?
@@ -359,6 +360,15 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+
+            if showsNotificationSettingsShortcut {
+                Button("打开系统设置") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(FamilyUI.accent)
+            }
         }
     }
 
@@ -489,16 +499,48 @@ struct OnboardingView: View {
     private func requestNotificationPermission() {
         isRequestingNotificationPermission = true
         notificationStatusMessage = nil
+        showsNotificationSettingsShortcut = false
 
         Task {
-            let granted = await NotificationService.requestAuthorization()
+            let feedback = NotificationPermissionFeedback(
+                granted: await NotificationService.requestAuthorization()
+            )
             await MainActor.run {
                 isRequestingNotificationPermission = false
-                notificationStatusMessage = granted ? "通知权限已开启" : "暂未开启通知权限，可以稍后在系统设置中打开。"
-                HapticEngine.success()
+                notificationStatusMessage = feedback.message
+                showsNotificationSettingsShortcut = feedback.showsSettingsShortcut
+                HapticEngine.play(feedback.haptic)
             }
         }
     }
+}
+
+/// 通知权限请求结果 → 该给用户什么反馈。
+///
+/// 被拒绝却发 success 触觉，系统状态和用户收到的信号正好相反：
+/// 用户以为已经开启，实际到期什么都不会提醒。
+enum NotificationPermissionFeedback: Equatable {
+    case granted
+    case denied
+
+    init(granted: Bool) { self = granted ? .granted : .denied }
+
+    var haptic: HapticFeedback {
+        switch self {
+        case .granted: return .success
+        case .denied: return .warning
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .granted: return "通知权限已开启"
+        case .denied: return "系统没有把通知交给 1Day，任务到期不会有任何提醒。"
+        }
+    }
+
+    /// 被拒绝时必须留下一条去处，而不是只说「稍后再说」。
+    var showsSettingsShortcut: Bool { self == .denied }
 }
 
 private struct OnboardingTopBar: View {

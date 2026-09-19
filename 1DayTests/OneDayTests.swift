@@ -1853,3 +1853,21 @@ private func withDefaultReminderTime(
         #expect(calendar.component(.weekday, from: landed) == nextWeekday)
     }
 }
+
+// MARK: - F-33 权限被拒不能给成功反馈
+
+@Test func deniedNotificationPermissionNeverFeelsLikeSuccess() {
+    let denied = NotificationPermissionFeedback(granted: false)
+
+    #expect(denied.haptic == .warning)
+    #expect(denied.showsSettingsShortcut)
+    #expect(denied.message.contains("不会有任何提醒"))
+}
+
+@Test func grantedNotificationPermissionKeepsItsOwnFeedback() {
+    let granted = NotificationPermissionFeedback(granted: true)
+
+    #expect(granted.haptic == .success)
+    #expect(granted.showsSettingsShortcut == false)
+    #expect(granted.message.contains("已开启"))
+}

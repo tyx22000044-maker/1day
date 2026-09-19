@@ -183,7 +183,22 @@ enum SoundEngine {
     }
 }
 
+/// 触觉类型作为值暴露，方便「哪个结果该给哪种反馈」被单测断言。
+enum HapticFeedback: Equatable, Sendable {
+    case tap
+    case success
+    case warning
+}
+
 enum HapticEngine {
+    static func play(_ feedback: HapticFeedback) {
+        switch feedback {
+        case .tap: tap()
+        case .success: success()
+        case .warning: warning()
+        }
+    }
+
     static func tap() {
         guard FeedbackPreferences.shared.isHapticsEnabled else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
