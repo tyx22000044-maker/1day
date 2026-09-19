@@ -82,6 +82,45 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-06 引导页跳过不能丢掉已输入的 key
+
+@Test func onboardingSkipCommitsTypedAPIKey() throws {
+    let service = LocalAIConfigurationService(keychain: InMemoryKeychainService())
+    let settings = UserSettings()
+    settings.selectedAIProvider = .qwen
+
+    let configured = AIConfigurationCoordinator.commitOnboardingAPIKey(
+        "  qwen-sk-abcdefghij  ",
+        on: settings,
+        using: service
+    )
+
+    #expect(configured)
+    #expect(settings.isAIConfigured)
+    #expect(try service.readAPIKey(provider: .qwen) == "qwen-sk-abcdefghij")
+}
+
+@Test func onboardingSkipWithEmptyInputKeepsExistingKey() throws {
+    let service = LocalAIConfigurationService(keychain: InMemoryKeychainService())
+    let settings = UserSettings()
+    settings.selectedAIProvider = .claude
+    try service.saveAPIKey("claude-key-1234567890", provider: .claude)
+
+    // 留空 = 不动已有 key，而不是把它当成「用户想删除」。
+    #expect(AIConfigurationCoordinator.commitOnboardingAPIKey("", on: settings, using: service))
+    #expect(try service.readAPIKey(provider: .claude) == "claude-key-1234567890")
+}
+
+@Test func onboardingSkipWithTooShortKeyIsNotMarkedConfigured() throws {
+    let service = LocalAIConfigurationService(keychain: InMemoryKeychainService())
+    let settings = UserSettings()
+    settings.selectedAIProvider = .kimi
+
+    let configured = AIConfigurationCoordinator.commitOnboardingAPIKey("abc", on: settings, using: service)
+    #expect(configured == false)
+    #expect(settings.isAIConfigured == false)
+}
+
 // MARK: - F-05 服务商切换后 AI 状态必须按 Keychain 重算
 
 private final class InMemoryKeychainService: KeychainService, @unchecked Sendable {

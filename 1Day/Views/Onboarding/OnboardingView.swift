@@ -296,10 +296,11 @@ struct OnboardingView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius))
 
-            Text("点击「继续」可跳过，进入应用后在「设置 → AI 服务商」中随时配置。")
+            Text("不想现在配置也可以直接跳过。只要在这里填过 Key，无论点「继续」还是「跳过」都会为你保存，之后可在「设置 → AI 配置」更换服务商或删除。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -445,6 +446,9 @@ struct OnboardingView: View {
     }
 
     private func finish() {
+        // 「跳过」和「继续」共用同一条 key 提交路径：用户在 AI 步骤贴好 key
+        // 后点顶部跳过，不能把输入静默丢掉。
+        saveAIConfiguration()
         settings.hasCompletedOnboarding = true
         touch()
         // 引导期间改过的字段（昵称、语言、提醒时间、AI 选择）必须随这次
@@ -472,17 +476,14 @@ struct OnboardingView: View {
     }
 
     private func saveAIConfiguration() {
-        do {
-            if !onboardingAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                try aiConfigurationService.saveAPIKey(onboardingAPIKey, provider: settings.selectedAIProvider)
-            }
-            settings.isAIConfigured = try aiConfigurationService.validateLocalConfiguration(settings: settings)
-            aiConfigurationMessage = settings.isAIConfigured ? "AI 配置已保存。" : "AI 配置未完成，可以稍后在设置中补充。"
-            touch()
-        } catch {
-            settings.isAIConfigured = false
-            aiConfigurationMessage = "AI 配置保存失败，可以稍后在设置中重试。"
-        }
+        let configured = AIConfigurationCoordinator.commitOnboardingAPIKey(
+            onboardingAPIKey,
+            on: settings,
+            using: aiConfigurationService
+        )
+        aiConfigurationMessage = configured
+            ? "AI 配置已保存。"
+            : "AI 配置未完成，可以稍后在设置中补充。"
     }
 
     private func requestNotificationPermission() {

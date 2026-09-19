@@ -181,6 +181,31 @@ enum AIConfigurationCoordinator {
         return configured
     }
 
+    /// Onboarding 的 AI 步骤提交入口：「继续」和「跳过」必须走同一条路径。
+    ///
+    /// 之前只有 `goForward` 的第三步会保存，用户在输入框里贴好 key 后点顶部
+    /// 「跳过」，引导结束、key 却被静默丢弃。留空表示不动已有 key。
+    @discardableResult
+    static func commitOnboardingAPIKey(
+        _ rawKey: String,
+        on settings: UserSettings,
+        using service: AIConfigurationService
+    ) -> Bool {
+        let trimmed = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            do {
+                try service.saveAPIKey(trimmed, provider: settings.selectedAIProvider)
+            } catch {
+                AppLogger.aiError("Onboarding 保存 API Key 失败: \(error.localizedDescription)")
+                settings.isAIConfigured = false
+                return false
+            }
+        }
+        settings.updatedAt = Date()
+        settings.isAIConfigured = (try? service.validateLocalConfiguration(settings: settings)) ?? false
+        return settings.isAIConfigured
+    }
+
     @discardableResult
     static func selectModel(
         _ model: String,
