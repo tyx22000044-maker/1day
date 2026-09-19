@@ -82,6 +82,186 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-11 通知调度按任务 id 串行化
+
+/// 线程安全的记录型出口：用 actor 存事件序列，避免并发 append 丢写。
+private actor RecordingNotificationDelivery: NotificationDelivering {
+    private let authorizationGranted: Bool
+    private var eventLog: [String] = []
+    private var addedRequests: [ReminderRequest] = []
+
+    init(authorizationGranted: Bool = true) {
+        self.authorizationGranted = authorizationGranted
+    }
+
+    func waitForAuthorization() async -> Bool {
+        // 留出真实的挂起点，让竞态有机会出现。
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        eventLog.append("auth")
+        return authorizationGranted
+    }
+
+    func removePending(identifier: String) async {
+        try? await Task.sleep(nanoseconds: 5_000_000)
+        eventLog.append("remove:\(identifier)")
+    }
+
+    func add(_ request: ReminderRequest) async throws {
+        try? await Task.sleep(nanoseconds: 5_000_000)
+        eventLog.append("add:\(request.title)")
+        addedRequests.append(request)
+    }
+
+    func snapshot() -> (events: [String], added: [ReminderRequest], lastEvent: String?) {
+        (eventLog, addedRequests, eventLog.last)
+    }
+}
+
+/// 可控门控版：第一次授权等待会被卡在门上，等测试安排好第二次提交后再放行，
+/// 这样「哪一次被取代」就是确定的，而不是看调度器心情。
+private actor GatedNotificationDelivery: NotificationDelivering {
+    private var eventLog: [String] = []
+    private var addedRequests: [ReminderRequest] = []
+    private var gateOpen = false
+    private var authAttempts = 0
+
+    func waitForAuthorization() async -> Bool {
+        authAttempts += 1
+        eventLog.append("auth:enter")
+        while !gateOpen {
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
+        eventLog.append("auth:exit")
+        return true
+    }
+
+    func removePending(identifier: String) async {
+        eventLog.append("remove:\(identifier)")
+    }
+
+    func add(_ request: ReminderRequest) async throws {
+        eventLog.append("add:\(request.title)")
+        addedRequests.append(request)
+    }
+
+    func waitUntilPendingWorkStarts() async {
+        while authAttempts == 0 {
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
+    }
+
+    func openGate() {
+        gateOpen = true
+    }
+
+    func snapshot() -> (added: [ReminderRequest], lastEvent: String?) {
+        (addedRequests, eventLog.last)
+    }
+}
+
+@Test func supersededScheduleCannotOvertakeTheNewestRequest() async throws {
+    let delivery = GatedNotificationDelivery()
+    let scheduler = NotificationScheduler(delivery: delivery)
+    let id = UUID()
+    let older = ReminderRequest(itemID: id, title: "旧日期", body: "b", triggerDate: Date().addingTimeInterval(3_600))
+    let newer = ReminderRequest(itemID: id, title: "新日期", body: "b", triggerDate: Date().addingTimeInterval(7_200))
+
+    async let first = scheduler.schedule(older)
+    await delivery.waitUntilPendingWorkStarts()
+    async let second = scheduler.schedule(newer)
+    await delivery.openGate()
+    await (first, second)
+
+    let snap = await delivery.snapshot()
+    #expect(snap.added.map(\.title) == ["新日期"])
+    #expect(snap.lastEvent == "add:新日期")
+}
+
+@Test func rapidReschedulesAlwaysEndWithAnAdd() async throws {
+    // 不加门控的真实交错：至少最后一步不能是 remove，
+    // 否则用户看到的就是「提醒凭空消失」。
+    let delivery = RecordingNotificationDelivery()
+    let scheduler = NotificationScheduler(delivery: delivery)
+    let id = UUID()
+
+    await withTaskGroup(of: Void.self) { group in
+        for minute in 1...6 {
+            group.addTask {
+                await scheduler.schedule(ReminderRequest(
+                    itemID: id,
+                    title: "第\(minute)次",
+                    body: "b",
+                    triggerDate: Date().addingTimeInterval(TimeInterval(minute * 600))
+                ))
+            }
+        }
+    }
+
+    let snap = await delivery.snapshot()
+    #expect(!snap.added.isEmpty)
+    #expect(snap.lastEvent?.hasPrefix("add:") == true)
+}
+
+@Test func cancelAfterScheduleIsTheLastThingThatTouchesTheCenter() async throws {
+    let delivery = RecordingNotificationDelivery()
+    let scheduler = NotificationScheduler(delivery: delivery)
+    let id = UUID()
+    let request = ReminderRequest(itemID: id, title: "即将撤销的任务", body: "b", triggerDate: Date().addingTimeInterval(3_600))
+
+    async let scheduling = scheduler.schedule(request)
+    try await Task.sleep(nanoseconds: 5_000_000)
+    await scheduler.cancel(itemID: id)
+    await scheduling
+
+    // 撤销排在调度之后，就必须是最后一个动作，否则通知中心会留下孤儿提醒。
+    let snap = await delivery.snapshot()
+    #expect(snap.lastEvent == "remove:\(ReminderRequest.identifier(for: id))")
+}
+
+@Test func differentTasksDoNotSupersedeEachOther() async throws {
+    let delivery = RecordingNotificationDelivery()
+    let scheduler = NotificationScheduler(delivery: delivery)
+
+    async let a = scheduler.schedule(ReminderRequest(itemID: UUID(), title: "甲", body: "b", triggerDate: .now.addingTimeInterval(3_600)))
+    async let b = scheduler.schedule(ReminderRequest(itemID: UUID(), title: "乙", body: "b", triggerDate: .now.addingTimeInterval(3_600)))
+    await (a, b)
+
+    let snap = await delivery.snapshot()
+    #expect(snap.added.count == 2)
+    #expect(Set(snap.added.map(\.title)) == ["甲", "乙"])
+}
+
+@Test func deniedAuthorizationSkipsScheduling() async throws {
+    let delivery = RecordingNotificationDelivery(authorizationGranted: false)
+    let scheduler = NotificationScheduler(delivery: delivery)
+
+    await scheduler.schedule(
+        ReminderRequest(itemID: UUID(), title: "任务", body: "b", triggerDate: .now.addingTimeInterval(3_600))
+    )
+
+    let snap = await delivery.snapshot()
+    #expect(snap.added.isEmpty)
+    #expect(snap.events == ["auth"])
+}
+
+@Test func reminderSnapshotOnlyExistsForFuturePendingTasks() throws {
+    let calendar = Calendar.current
+    let future = calendar.date(byAdding: .day, value: 2, to: .now)!
+
+    let scheduled = PlanItem(title: "交报告", dueDate: future)
+    let snapshot = NotificationService.reminderRequest(for: scheduled)
+    #expect(snapshot?.itemID == scheduled.id)
+    #expect(snapshot?.title == "交报告")
+    #expect(snapshot?.triggerDate ?? .distantPast > Date())
+
+    // 已完成、没有日期、日期已过：都不该留下提醒。
+    let completed = PlanItem(title: "已完成", dueDate: future)
+    completed.status = .completed
+    #expect(NotificationService.reminderRequest(for: completed) == nil)
+    #expect(NotificationService.reminderRequest(for: PlanItem(title: "未安排", dueDate: nil)) == nil)
+    #expect(NotificationService.reminderRequest(for: PlanItem(title: "过期", dueDate: .now.addingTimeInterval(-3_600))) == nil)
+}
+
 // MARK: - F-10 计划上下文按意图最小化外发
 
 @Test func casualMessagesNeverNeedPlanContext() {
