@@ -82,6 +82,113 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-08 重试成功后要重新进入任务确认
+
+private final class ScriptedAIService: AIService, @unchecked Sendable {
+    private let results: [Result<String, Error>]
+    private(set) var callCount = 0
+
+    init(results: [Result<String, Error>]) {
+        self.results = results
+    }
+
+    func sendMessage(_ text: String, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
+        let index = min(callCount, results.count - 1)
+        callCount += 1
+        switch results[index] {
+        case .success(let reply): return reply
+        case .failure(let error): throw error
+        }
+    }
+
+    func sendMessageWithImage(_ text: String, imageData: Data, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
+        try await sendMessage(text, history: history, context: context)
+    }
+
+    func sendMessageWithImages(_ text: String, imageDataList: [Data], history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
+        try await sendMessage(text, history: history, context: context)
+    }
+
+    func parseStructuredIntent(from text: String) async throws -> AIChatIntentResult? { nil }
+    func parseStructuredIntentWithImage(_ text: String, imageData: Data) async throws -> AIChatIntentResult? { nil }
+    func parseStructuredIntentWithImages(_ text: String, imageDataList: [Data]) async throws -> AIChatIntentResult? { nil }
+}
+
+@Test @MainActor func retryAfterFailedRequestStillOffersTaskConfirmation() async throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+    let service = ScriptedAIService(results: [
+        .failure(AIClientError.providerError("网络中断")),
+        .success("已整理为一条任务"),
+    ])
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+    viewModel.inputText = "明天提交周报"
+
+    viewModel.send(
+        imageDataList: [],
+        messages: [],
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 200_000_000)
+
+    // 第一次失败：留下重试入口，但没有草稿。
+    #expect(viewModel.failedRequestText == "明天提交周报")
+    #expect(viewModel.pendingTask == nil)
+
+    viewModel.retryLastRequest(
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 200_000_000)
+
+    // 重试成功必须和首次成功一致：解析出草稿并打开确认卡。
+    #expect(service.callCount == 2)
+    #expect(viewModel.pendingTask?.title == "提交周报")
+    #expect(viewModel.isShowingConfirmation)
+}
+
+@Test @MainActor func plainChatRetryDoesNotOpenConfirmation() async throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+    let service = ScriptedAIService(results: [
+        .failure(AIClientError.providerError("请求超时")),
+        .success("这周你完成了 3 个任务。"),
+    ])
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+    viewModel.inputText = "我这周做得怎么样"
+
+    viewModel.send(
+        imageDataList: [],
+        messages: [],
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 120_000_000)
+
+    viewModel.retryLastRequest(
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 120_000_000)
+
+    // 非创建意图：只留一条回复，不能凭空弹确认卡。
+    #expect(viewModel.pendingTask == nil)
+    #expect(viewModel.isShowingConfirmation == false)
+    let assistant = try context.fetch(FetchDescriptor<AIChatMessage>()).filter { $0.role == "assistant" }
+    #expect(assistant.count == 1)
+}
+
 // MARK: - F-07 「停止」必须真的取消网络请求
 
 private final class SlowAIService: AIService, @unchecked Sendable {
@@ -121,7 +228,6 @@ private func configuredSettings(in context: ModelContext) throws -> UserSettings
 }
 
 @Test @MainActor func stoppingARequestCancelsTaskAndSuppressesLateResult() async throws {
-    GlobalBannerCenter.shared.dismiss()
     let container = try makeInMemoryContainer()
     let context = ModelContext(container)
     let settings = try configuredSettings(in: context)
@@ -152,12 +258,13 @@ private func configuredSettings(in context: ModelContext) throws -> UserSettings
     let messages = try context.fetch(FetchDescriptor<AIChatMessage>())
     #expect(messages.contains { $0.role == "user" })
     #expect(!messages.contains { $0.role == "assistant" })
-    // 用户主动取消不是失败，不该弹「AI 请求失败」。
-    #expect(GlobalBannerCenter.shared.currentBanner == nil)
+    // 用户主动取消不算失败：不能留下「重试」入口（banner 是共享单例，
+    // 并行测试下互相干扰，所以断言实例状态而不是全局状态）。
+    #expect(viewModel.failedRequestText == nil)
+    #expect(viewModel.failedRequestImages.isEmpty)
 }
 
 @Test @MainActor func cancelledRequestDoesNotOpenTaskConfirmation() async throws {
-    GlobalBannerCenter.shared.dismiss()
     let container = try makeInMemoryContainer()
     let context = ModelContext(container)
     let settings = try configuredSettings(in: context)

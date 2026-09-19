@@ -512,18 +512,12 @@ final class AIChatViewModel {
                 }
                 try Task.checkCancellation()
                 endLoading()
-                // Show AI response as a plain message first
-                modelContext.insert(AIChatMessage(
-                    role: "assistant",
-                    content: response,
-                    provider: provider
-                ))
-                // Only open task draft confirmation if the original text was a task-creation command
-                if let draft = LocalAIIntentParser.parseTask(from: text) {
-                    pendingTask = draft
-                    isShowingConfirmation = true
-                }
-                HapticEngine.success()
+                handleSuccessfulResponse(
+                    response,
+                    originalText: text,
+                    provider: provider,
+                    modelContext: modelContext
+                )
             } catch {
                 let wasCancelled = error is CancellationError || Task.isCancelled
                 endLoading()
@@ -569,8 +563,12 @@ final class AIChatViewModel {
                 }
                 try Task.checkCancellation()
                 endLoading()
-                modelContext.insert(AIChatMessage(role: "assistant", content: response, provider: provider))
-                HapticEngine.success()
+                handleSuccessfulResponse(
+                    response,
+                    originalText: text,
+                    provider: provider,
+                    modelContext: modelContext
+                )
             } catch {
                 let wasCancelled = error is CancellationError || Task.isCancelled
                 endLoading()
@@ -586,6 +584,26 @@ final class AIChatViewModel {
                 HapticEngine.warning()
             }
         }
+    }
+
+    // MARK: - Response Handling
+
+    /// 首次发送和重试共用同一条成功路径。
+    ///
+    /// 之前重试分支只插入回复、不跑意图解析，于是第一次请求失败的
+    /// 「明天提交周报」在重试成功后变成一条普通聊天，用户再也拿不到草稿确认卡。
+    private func handleSuccessfulResponse(
+        _ response: String,
+        originalText: String,
+        provider: AIProvider,
+        modelContext: ModelContext
+    ) {
+        modelContext.insert(AIChatMessage(role: "assistant", content: response, provider: provider))
+        if let draft = LocalAIIntentParser.parseTask(from: originalText) {
+            pendingTask = draft
+            isShowingConfirmation = true
+        }
+        HapticEngine.success()
     }
 
     // MARK: - Task Draft Confirmation
