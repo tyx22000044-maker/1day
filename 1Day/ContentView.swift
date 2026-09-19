@@ -60,9 +60,16 @@ struct ContentView: View {
         .dismissKeyboardOnTap()
         .overlay(alignment: .top) {
             if let banner = bannerCenter.currentBanner {
-                AppErrorBanner(title: banner.title, message: banner.message, tone: banner.tone) {
-                    bannerCenter.dismiss()
+                AppErrorBanner(
+                    presentationID: banner.id,
+                    title: banner.title,
+                    message: banner.message,
+                    tone: banner.tone
+                ) {
+                    bannerCenter.dismiss(id: banner.id)
                 }
+                // 换一条 banner 就换一份视图状态，别把上一条的收起计时带过来。
+                .id(banner.id)
             }
         }
     }

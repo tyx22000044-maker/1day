@@ -32,14 +32,19 @@ enum AppBannerTone: Equatable {
     }
 }
 
-/// 全局横幅组件 — 从顶部滑入的 toast，由 `GlobalBannerCenter` 驱动
+/// 全局横幅组件 — 从顶部滑入的 toast，由 `GlobalBannerCenter` 驱动。
+///
+/// `presentationID` 是这条 banner 的身份：延迟收起的回调只允许关闭自己那一条，
+/// 而且 `.task(id:)` 会在身份变化时取消上一次的计时，旧 banner 不会误关新 banner。
 struct AppErrorBanner: View {
+    let presentationID: UUID
     let title: String
     var message: String?
     var tone: AppBannerTone = .error
     let onDismiss: () -> Void
 
     @State private var isVisible = false
+    @State private var isDismissing = false
 
     var body: some View {
         VStack {
@@ -69,7 +74,7 @@ struct AppErrorBanner: View {
                     Spacer(minLength: 0)
 
                     Button {
-                        dismiss()
+                        Task { await runDismissal() }
                     } label: {
                         Image(systemName: "xmark")
                             .font(FamilyTypography.text(.caption, .black))
@@ -77,6 +82,7 @@ struct AppErrorBanner: View {
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("关闭提示")
                 }
                 .padding(12)
                 .background(tone.background)
@@ -93,25 +99,23 @@ struct AppErrorBanner: View {
             Spacer()
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.74), value: isVisible)
-        .onAppear {
+        .task(id: presentationID) {
             isVisible = true
-            autoDismissAfter(4)
+            isDismissing = false
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            await runDismissal()
         }
     }
 
-    private func dismiss() {
+    private func runDismissal() async {
+        guard isVisible, !isDismissing else { return }
+        isDismissing = true
         withAnimation(.easeOut(duration: 0.18)) {
             isVisible = false
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            onDismiss()
-        }
-    }
-
-    private func autoDismissAfter(_ seconds: Double) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-            guard isVisible else { return }
-            dismiss()
-        }
+        try? await Task.sleep(nanoseconds: 180_000_000)
+        guard !Task.isCancelled else { return }
+        onDismiss()
     }
 }

@@ -85,6 +85,33 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-29 banner 身份校验
+
+@Test @MainActor func staleBannerDismissalCannotCloseTheNewerBanner() throws {
+    // 每条 banner 一个中心实例，避免并行测试共享 .shared 时互相踩。
+    let center = GlobalBannerCenter()
+    center.show(title: "第一条")
+    let firstID = try #require(center.currentBanner).id
+    center.show(title: "第二条", tone: .warning)
+    let secondID = try #require(center.currentBanner).id
+
+    // 第一条的延迟收起回调这时才到：它只该关掉自己那一条。
+    center.dismiss(id: firstID)
+    #expect(center.currentBanner?.id == secondID)
+
+    center.dismiss(id: secondID)
+    #expect(center.currentBanner == nil)
+}
+
+@Test @MainActor func eachBannerGetsItsOwnIdentity() {
+    let center = GlobalBannerCenter()
+    center.show(title: "甲")
+    let first = center.currentBanner?.id
+    center.show(title: "乙")
+    let second = center.currentBanner?.id
+    #expect(first != second)
+}
+
 // MARK: - F-28 语音输入相位机
 
 @Test func tappingWhileStartingCancelsInsteadOfStackingASecondSession() {
