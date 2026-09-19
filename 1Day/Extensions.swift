@@ -161,6 +161,14 @@ struct AppSwitchStyle: ToggleStyle {
             }
         }
         .buttonStyle(.plain)
+        // 自绘的方块在 VoiceOver 里只是一个普通按钮，听不到「打开/关闭」。
+        // 用原生 Toggle 承接无障碍语义，视觉仍是 Swiss Ledger 的方块，
+        // 状态、转子操作和开关语义都交回系统。
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) {
+                configuration.label
+            }
+        }
     }
 }
 
