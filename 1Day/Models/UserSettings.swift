@@ -97,6 +97,27 @@ final class UserSettings {
     var defaultReminderTime: DateComponents {
         DateComponents(hour: defaultReminderHour, minute: defaultReminderMinute)
     }
+
+    /// 表单预填用：把用户设定的默认提醒点落到 day 当天。
+    /// 「没有提醒」和「提醒正好是默认时间」仍由 reminderTime 是否为 nil 区分。
+    func reminderDate(on day: Date, calendar: Calendar = .current) -> Date {
+        defaultReminderTime.reminderDate(on: day, calendar: calendar)
+    }
+}
+
+extension DateComponents {
+    /// 把自身携带的时分落到 day 当天，得到表单预填用的提醒时刻。
+    func reminderDate(on day: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(
+            bySettingHour: hour ?? 9,
+            minute: minute ?? 0,
+            second: 0,
+            of: day
+        ) ?? day
+    }
+
+    /// 拿不到 UserSettings 记录时的兜底，与模型初始化默认值一致。
+    static let fallbackReminder = DateComponents(hour: 9, minute: 0)
 }
 
 /// 首启动时创建唯一的 UserSettings 记录，并把历史遗留的多余记录收敛成一条。

@@ -20,6 +20,7 @@ struct PlanListView: View {
     }
 
     private var language: AppLanguage { settings.first?.language ?? .system }
+    private var defaultReminder: DateComponents { settings.first?.defaultReminderTime ?? .fallbackReminder }
 
     private func localized(_ key: AppText.Key) -> String {
         AppText.string(key, language: language)
@@ -162,7 +163,7 @@ struct PlanListView: View {
                 }
             }
             .sheet(isPresented: $isShowingCreateSheet) {
-                TaskEditorSheet(defaultDueDate: nil)
+                TaskEditorSheet(defaultDueDate: nil, defaultReminderTime: defaultReminder)
             }
             .sheet(item: $schedulingItem) { item in
                 QuickScheduleSheet(item: item)
@@ -355,6 +356,7 @@ struct TaskEditorSheet: View {
     }
 
     let defaultDueDate: Date?
+    private let defaultReminderTime: DateComponents
 
     @State private var title = ""
     @State private var notes = ""
@@ -369,11 +371,12 @@ struct TaskEditorSheet: View {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    init(defaultDueDate: Date?) {
+    init(defaultDueDate: Date?, defaultReminderTime: DateComponents) {
         self.defaultDueDate = defaultDueDate
+        self.defaultReminderTime = defaultReminderTime
         _hasDueDate = State(initialValue: defaultDueDate != nil)
         _dueDate = State(initialValue: defaultDueDate ?? Date())
-        _reminderTime = State(initialValue: Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+        _reminderTime = State(initialValue: defaultReminderTime.reminderDate(on: defaultDueDate ?? Date()))
     }
 
     var body: some View {
@@ -428,6 +431,12 @@ struct TaskEditorSheet: View {
                                     AppSettingsRow(icon: "bell.fill", title: "设置提醒", subtitle: "到时间提醒我")
                                 }
                                 .tint(FamilyUI.accent)
+                                .onChange(of: hasReminder) { _, enabled in
+                                    // 打开时才取默认点：这样先改日期再开提醒，预填跟着日期走。
+                                    if enabled {
+                                        reminderTime = defaultReminderTime.reminderDate(on: dueDate)
+                                    }
+                                }
 
                                 if hasReminder {
                                     SystemPanelDivider()
@@ -496,6 +505,7 @@ struct TaskDetailView: View {
     @Query private var settings: [UserSettings]
 
     private var language: AppLanguage { settings.first?.language ?? .system }
+    private var defaultReminder: DateComponents { settings.first?.defaultReminderTime ?? .fallbackReminder }
 
     private func localized(_ zh: String, _ en: String) -> String {
         AppSettingsLocalization.text(zh, en, language: language)
@@ -514,7 +524,9 @@ struct TaskDetailView: View {
         _hasDueDate = State(initialValue: item.dueDate != nil)
         _dueDate = State(initialValue: item.dueDate ?? Date())
         _hasCustomReminder = State(initialValue: item.reminderTime != nil)
-        _reminderTime = State(initialValue: item.reminderTime ?? Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+        // reminderTime 为 nil 时提醒开关是关的，这个占位值不会露出来；
+        // 用户打开开关时再用设置里的默认点替换。
+        _reminderTime = State(initialValue: item.reminderTime ?? item.dueDate ?? Date())
     }
 
     var body: some View {
@@ -567,7 +579,13 @@ struct TaskDetailView: View {
                             }
                             .tint(FamilyUI.accent)
                             .onChange(of: hasCustomReminder) { _, enabled in
-                                PlanItemService.updateSchedule(for: item, dueDate: dueDate, reminderTime: enabled ? reminderTime : nil)
+                                if enabled {
+                                    let seeded = defaultReminder.reminderDate(on: dueDate)
+                                    reminderTime = seeded
+                                    PlanItemService.updateSchedule(for: item, dueDate: dueDate, reminderTime: seeded)
+                                } else {
+                                    PlanItemService.updateSchedule(for: item, dueDate: dueDate, reminderTime: nil)
+                                }
                             }
 
                             if hasCustomReminder {

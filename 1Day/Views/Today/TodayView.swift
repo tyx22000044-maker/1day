@@ -142,7 +142,10 @@ struct TodayView: View {
                 }
             }
             .sheet(isPresented: $isShowingCreateSheet) {
-                TaskEditorSheet(defaultDueDate: selectedDate)
+                TaskEditorSheet(
+                    defaultDueDate: selectedDate,
+                    defaultReminderTime: settings.first?.defaultReminderTime ?? .fallbackReminder
+                )
             }
             .overlay(alignment: .bottom) {
                 if let snapshot = undoTaskSnapshot {

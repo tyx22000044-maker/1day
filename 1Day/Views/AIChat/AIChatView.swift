@@ -120,7 +120,7 @@ struct AIChatView: View {
                 if let pendingTask = viewModel.pendingTask {
                     TaskDraftConfirmationView(
                         draft: pendingTask,
-                        defaultReminderTime: currentSettings?.defaultReminderTime ?? DateComponents(hour: 9, minute: 0)
+                        defaultReminderTime: currentSettings?.defaultReminderTime ?? .fallbackReminder
                     ) { task in
                         viewModel.save(task, settings: currentSettings, modelContext: modelContext)
                     }
@@ -496,13 +496,7 @@ private struct TaskDraftConfirmationView: View {
         _dueDate = State(initialValue: draft.dueDate ?? Date())
         _priority = State(initialValue: draft.priority ?? .none)
         // AI 给了提醒时间就带上；没给则以用户在设置里定的默认提醒时间起算。
-        let fallback = Calendar.current.date(
-            bySettingHour: defaultReminderTime.hour ?? 9,
-            minute: defaultReminderTime.minute ?? 0,
-            second: 0,
-            of: draft.dueDate ?? Date()
-        ) ?? Date()
-        _reminderTime = State(initialValue: draft.reminderTime ?? fallback)
+        _reminderTime = State(initialValue: draft.reminderTime ?? defaultReminderTime.reminderDate(on: draft.dueDate ?? Date()))
         _hasReminder = State(initialValue: draft.reminderTime != nil)
         self.onConfirm = onConfirm
     }

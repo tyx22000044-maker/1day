@@ -1702,3 +1702,40 @@ private func makeTempDirectory() throws -> URL {
     let fetched = try context.fetch(FetchDescriptor<PlanItem>())
     #expect(fetched.contains { $0.title == "内存模式仍可记录" })
 }
+
+// MARK: - F-30 提醒预填跟随用户默认
+
+@Test func editorReminderPrefillUsesTheSettingNotNineOClock() {
+    let settings = UserSettings(defaultReminderHour: 18, defaultReminderMinute: 30)
+    let calendar = Calendar.current
+    // 参考日刻意选在早上 07:05：预填要换到当天的 18:30，既不是固定的 09:00，也不是参考时刻本身。
+    let day = calendar.date(bySettingHour: 7, minute: 5, second: 0, of: calendar.startOfDay(for: .now))!
+
+    let parts = calendar.dateComponents([.hour, .minute, .second], from: settings.reminderDate(on: day))
+
+    #expect(parts.hour == 18)
+    #expect(parts.minute == 30)
+    #expect(parts.second == 0)
+}
+
+@Test func reminderPrefillStaysInsideTheChosenDay() {
+    let settings = UserSettings(defaultReminderHour: 23, defaultReminderMinute: 59)
+    let calendar = Calendar.current
+    let evening = calendar.date(bySettingHour: 23, minute: 58, second: 0, of: .now)!
+
+    #expect(calendar.isDate(settings.reminderDate(on: evening), inSameDayAs: evening))
+
+    let otherDay = calendar.date(byAdding: .day, value: 3, to: evening)!
+    let prefilled = settings.reminderDate(on: otherDay)
+    #expect(calendar.isDate(prefilled, inSameDayAs: otherDay))
+    #expect(calendar.component(.hour, from: prefilled) == 23)
+}
+
+@Test func missingSettingsRecordStillFallsBackToTheModelDefault() {
+    let calendar = Calendar.current
+    let day = calendar.startOfDay(for: .now)
+    #expect(
+        DateComponents.fallbackReminder.reminderDate(on: day)
+            == calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day)
+    )
+}
