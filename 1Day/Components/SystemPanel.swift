@@ -136,6 +136,23 @@ struct FamilyTaskRow: View {
         item.isOverdue(asOf: asOf) ? AppSettingsLocalization.text("过期", "Overdue", language: language) : ""
     }
 
+    /// 整行的 VoiceOver 摘要。
+    ///
+    /// 标题、备注、日期、优先级、完成状态在视觉上是分开的几块，读屏按顺序念下来
+    /// 会散成一堆片段，而且备注和标题在列表里是截断显示的 —— 听的时候不该也被截断。
+    static func accessibilitySummary(for item: PlanItem, asOf date: Date, language: AppLanguage) -> String {
+        func phrase(_ zh: String, _ en: String) -> String { AppSettingsLocalization.text(zh, en, language: language) }
+
+        var parts: [String] = [item.title]
+        if !item.notes.isEmpty { parts.append(item.notes) }
+        if let dueDate = item.dueDate { parts.append(dueDate.dayHeading(in: language.locale)) }
+        if item.reminderTime != nil { parts.append(phrase("已设提醒", "reminder set")) }
+        if item.priority != .none { parts.append("\(phrase("优先级", "priority")) \(item.priority.displayName(for: language))") }
+        parts.append(item.isCompleted ? phrase("已完成", "completed") : phrase("未完成", "not completed"))
+        if item.isOverdue(asOf: date) { parts.append(phrase("已过期", "overdue")) }
+        return parts.joined(separator: "，")
+    }
+
     var body: some View {
         HStack(spacing: AppSpacing.rowIconSpacing) {
             FamilyListIconBox(
@@ -187,6 +204,8 @@ struct FamilyTaskRow: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilitySummary(for: item, asOf: asOf, language: language))
     }
 }
 

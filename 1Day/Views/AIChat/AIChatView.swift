@@ -8,6 +8,7 @@ struct AIChatView: View {
     @Environment(AppViewModel.self) private var appViewModel
     @Query private var settings: [UserSettings]
     @Query(sort: [SortDescriptor(\AIChatMessage.createdAt)]) private var messages: [AIChatMessage]
+    @Query private var appSettings: [UserSettings]
     // AI context only ever looks at scheduled tasks (today/upcoming week), so the
     // query excludes the unscheduled backlog instead of loading every PlanItem.
     @Query(filter: #Predicate<PlanItem> { $0.dueDate != nil })
@@ -25,6 +26,7 @@ struct AIChatView: View {
     @FocusState private var isInputFocused: Bool
 
     private var currentSettings: UserSettings? { settings.first }
+    private var imageLanguage: AppLanguage { appSettings.first?.language ?? .system }
     private var currentProvider: AIProvider { currentSettings?.selectedAIProvider ?? .claude }
     private var isConfigured: Bool { currentSettings?.isAIConfigured == true }
     private var canUseVision: Bool {
@@ -363,6 +365,14 @@ struct AIChatView: View {
                                     .font(.caption)
                                     .foregroundStyle(.white, .black.opacity(0.45))
                             }
+                            // 只有一张 × 图标的话，读屏说不出「移除的是第几张」。
+                            .accessibilityLabel(
+                                AppSettingsLocalization.text(
+                                    "移除第 \(index + 1) 张图片",
+                                    "Remove image \(index + 1)",
+                                    language: imageLanguage
+                                )
+                            )
                             .offset(x: 5, y: -5)
                         }
                     }

@@ -168,6 +168,16 @@ enum Priority: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// 优先级名称也要跟界面语言，否则英文选择器里冒出「高/中/低」。
+    func displayName(for language: AppLanguage) -> String {
+        switch self {
+        case .none:   return AppSettingsLocalization.text("无", "None", language: language)
+        case .low:    return AppSettingsLocalization.text("低", "Low", language: language)
+        case .medium: return AppSettingsLocalization.text("中", "Medium", language: language)
+        case .high:   return AppSettingsLocalization.text("高", "High", language: language)
+        }
+    }
+
     var color: Color {
         switch self {
         case .none:   return .secondary

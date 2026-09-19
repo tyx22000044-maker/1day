@@ -84,6 +84,44 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-26 行级无障碍语义
+
+@Test func taskRowSummaryCoversEveryVisualState() throws {
+    let future = try #require(Calendar.current.date(byAdding: .day, value: 2, to: .now))
+    let reminder = try #require(Calendar.current.date(bySettingHour: 19, minute: 30, second: 0, of: .now))
+    let item = PlanItem(
+        title: "带护照",
+        notes: "在抽屉第二层",
+        dueDate: Calendar.current.startOfDay(for: future),
+        priority: .high,
+        reminderTime: reminder
+    )
+
+    let chinese = FamilyTaskRow.accessibilitySummary(for: item, asOf: .now, language: .zhHans)
+    // 视觉上分散在图标框、标题、备注、日期、旗标和徽标里的信息，要能被一次读完。
+    #expect(chinese.contains("带护照"))
+    #expect(chinese.contains("在抽屉第二层"))
+    #expect(chinese.contains("未完成"))
+    #expect(chinese.contains("高"))
+    #expect(chinese.contains("已设提醒"))
+    #expect(!chinese.contains("已过期"))
+
+    item.status = .completed
+    let done = FamilyTaskRow.accessibilitySummary(for: item, asOf: .now, language: .zhHans)
+    #expect(done.contains("已完成"))
+
+    let overdueItem = PlanItem(title: "交报告", dueDate: .now.addingTimeInterval(-86_400))
+    let overdue = FamilyTaskRow.accessibilitySummary(for: overdueItem, asOf: .now, language: .zhHans)
+    #expect(overdue.contains("已过期"))
+}
+
+@Test func taskRowSummarySwitchesLanguageWithTheInterface() throws {
+    let item = PlanItem(title: "Renew visa", dueDate: nil, priority: .medium)
+    #expect(FamilyTaskRow.accessibilitySummary(for: item, asOf: .now, language: .english).contains("Medium"))
+    #expect(!containsCJK(FamilyTaskRow.accessibilitySummary(for: item, asOf: .now, language: .english)))
+    #expect(FamilyTaskRow.accessibilitySummary(for: item, asOf: .now, language: .zhHans).contains("中"))
+}
+
 // MARK: - F-23 界面语言与日期格式
 
 private func containsCJK(_ text: String) -> Bool {

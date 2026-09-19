@@ -344,6 +344,7 @@ private struct AppTabBar: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 46)
+                    .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
                     .overlay(alignment: .top) {
                         if selectedTab == tab {
                             Rectangle()

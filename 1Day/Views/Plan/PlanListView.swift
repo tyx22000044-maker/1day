@@ -439,7 +439,7 @@ struct TaskEditorSheet: View {
                             SystemPanelDivider()
                             Picker(localized(.priorityLabel), selection: $priority) {
                                 ForEach(Priority.allCases) { priority in
-                                    Text(priority.displayName).tag(priority)
+                                    Text(priority.displayName(for: language)).tag(priority)
                                 }
                             }
                             .padding(.vertical, 6)
@@ -583,7 +583,7 @@ struct TaskDetailView: View {
                         SystemPanelDivider()
                         Picker(localized("优先级", "Priority"), selection: priorityBinding) {
                             ForEach(Priority.allCases) { priority in
-                                Text(priority.displayName).tag(priority)
+                                Text(priority.displayName(for: language)).tag(priority)
                             }
                         }
                         .padding(.vertical, 6)

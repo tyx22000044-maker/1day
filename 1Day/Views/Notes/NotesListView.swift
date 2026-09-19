@@ -59,7 +59,7 @@ struct NotesListView: View {
                                     NavigationLink {
                                         NoteEditorView(note: note)
                                     } label: {
-                                        NoteRow(note: note)
+                                        NoteRow(note: note, language: language)
                                     }
                                     .buttonStyle(.plain)
                                     .contextMenu {
@@ -175,6 +175,7 @@ struct NotesListView: View {
 
 private struct NoteRow: View {
     let note: Note
+    var language: AppLanguage = .system
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -195,5 +196,9 @@ private struct NoteRow: View {
             }
         }
         .padding(.vertical, 2)
+        // 列表里标题和预览都只给一行，读屏要读到完整内容。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(note.displayTitle + "，" + note.content)
+        .accessibilityValue(note.updatedAt.dayHeading(in: language.locale))
     }
 }
