@@ -4,6 +4,8 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var settings: [UserSettings]
+    @Query private var planItems: [PlanItem]
+    @Query private var notes: [Note]
 
     @State private var appViewModel = AppViewModel()
     @State private var bootstrapSettings: UserSettings?
@@ -26,6 +28,12 @@ struct ContentView: View {
                     FamilyUI.pageBackground.ignoresSafeArea()
                     ProgressView("正在初始化 1Day...")
                 }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // 常驻、不可关闭：降级运行时必须让用户知道数据不会落盘。
+            if case .inMemoryOnly(let reason) = AppContainer.health {
+                StorageRiskBanner(planItems: planItems, notes: notes, settings: currentSettings, reason: reason)
             }
         }
         .onAppear {
@@ -110,6 +118,91 @@ struct ContentView: View {
     private func applyFeedbackPreferences() {
         guard let currentSettings else { return }
         FeedbackPreferences.shared.apply(settings: currentSettings)
+    }
+}
+
+/// 持久化不可用时的常驻提示条。
+///
+/// 不可关闭：静默降级到内存容器会让用户以为任务已保存，重启后才发现全部丢失。
+/// 除了警示，还提供唯一出路——把当前内存里的数据导成 JSON 备份，避免边用边丢。
+struct StorageRiskBanner: View {
+    let planItems: [PlanItem]
+    let notes: [Note]
+    let settings: UserSettings?
+    let reason: String
+
+    @State private var exportURL: URL?
+    @State private var exportFailed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(FamilyTypography.text(.subheadline, .bold))
+                Text("存储不可用 · 本次修改不会保存")
+                    .font(FamilyTypography.text(.subheadline, .bold))
+                Spacer(minLength: 0)
+            }
+
+            Text("重启 App 可再次尝试打开数据库。在恢复正常前，请先导出当前数据，否则退出后会把任务和笔记一起丢掉。")
+                .font(FamilyTypography.text(.caption))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                if let exportURL {
+                    ShareLink(item: exportURL) {
+                        Text("分享备份文件")
+                            .font(FamilyTypography.text(.caption, .bold))
+                    }
+                } else {
+                    Button {
+                        exportBackup()
+                    } label: {
+                        Text("导出当前数据")
+                            .font(FamilyTypography.text(.caption, .bold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(FamilyUI.panelBackground)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
+                                    .stroke(FamilyUI.panelBorder, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if exportFailed {
+                    Text("导出失败，请重试")
+                        .font(FamilyTypography.text(.caption2))
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FamilyUI.danger.opacity(0.12))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(FamilyUI.danger)
+                .frame(height: 2)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("存储不可用，本次修改不会被保存")
+        .accessibilityHint(reason)
+    }
+
+    private func exportBackup() {
+        do {
+            exportURL = try SettingsDataCoordinator.exportBackup(
+                planItems: planItems,
+                notes: notes,
+                settings: settings
+            )
+            exportFailed = false
+        } catch {
+            exportFailed = true
+            AppLogger.dataError("降级模式导出备份失败: \(error.localizedDescription)")
+        }
     }
 }
 
