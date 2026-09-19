@@ -246,18 +246,18 @@ struct TodayView: View {
     private struct TrendDay: Identifiable {
         let id: Int
         let label: String
-        let count: Int
+        let completions: Int
         let isToday: Bool
     }
 
     private var weekTrendChart: some View {
         let data = last7DaysCompletions()
-        let maxCount = max(data.map(\.count).max() ?? 1, 1)
+        let maxCount = max(data.map(\.completions).max() ?? 1, 1)
         return HStack(alignment: .bottom, spacing: 6) {
             ForEach(data) { day in
                 VStack(spacing: 3) {
-                    if day.count > 0 {
-                        Text("\(day.count)")
+                    if day.completions > 0 {
+                        Text("\(day.completions)")
                             .font(FamilyTypography.fixed(9))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -267,7 +267,7 @@ struct TodayView: View {
                     }
                     Rectangle()
                         .fill(day.isToday ? FamilyUI.accent : FamilyUI.panelMutedBackground)
-                        .frame(height: max(CGFloat(day.count) / CGFloat(maxCount) * 56, 4))
+                        .frame(height: max(CGFloat(day.completions) / CGFloat(maxCount) * 56, 4))
                     Text(day.label)
                         .font(FamilyTypography.fixed(10))
                         .foregroundStyle(day.isToday ? FamilyUI.accent : Color.secondary)
@@ -503,7 +503,7 @@ struct TodayView: View {
             }.count
             let weekday = cal.component(.weekday, from: date)
             let label = symbols.indices.contains(weekday - 1) ? symbols[weekday - 1] : "?"
-            return TrendDay(id: daysAgo, label: label, count: count, isToday: daysAgo == 0)
+            return TrendDay(id: daysAgo, label: label, completions: count, isToday: daysAgo == 0)
         }
     }
 }

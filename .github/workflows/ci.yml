@@ -12,15 +12,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: SwiftLint
+        # 固定来源和版本：runner 上预装了什么、Homebrew 装到哪个版本，
+        # 都不该决定这条门禁是否真的执行。装不上或版本对不上就让 job 失败。
+        env:
+          SWIFTLINT_VERSION: 0.65.1
         run: |
-          if ! which swiftlint >/dev/null; then
-            brew install swiftlint || true
-          fi
-          if which swiftlint >/dev/null; then
-            swiftlint lint --quiet
-          else
-            echo "swiftlint unavailable, skipping"
-          fi
+          set -euo pipefail
+          curl -fsSL -o /tmp/swiftlint.zip \
+            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/portable_swiftlint.zip"
+          rm -rf /tmp/swiftlint
+          unzip -q /tmp/swiftlint.zip -d /tmp/swiftlint
+          SWIFTLINT=/tmp/swiftlint/swiftlint
+          test -x "$SWIFTLINT"
+          chmod +x "$SWIFTLINT"
+          test "$("$SWIFTLINT" version)" = "$SWIFTLINT_VERSION"
+          "$SWIFTLINT" lint --quiet
 
       - name: Build
         run: |
