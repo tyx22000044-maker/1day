@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import UserNotifications
 @testable import OneDay
 
 @Test func planItemCreation() async throws {
@@ -82,16 +83,101 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-13 通知失败必须让用户看见
+
+private struct StubAddFailure: Error, LocalizedError {
+    var errorDescription: String? { "系统拒绝了这条提醒" }
+}
+
+@Test func permissionStateMapsEverySystemStatus() {
+    #expect(ReminderPermissionState(.authorized) == .granted)
+    #expect(ReminderPermissionState(.denied) == .denied)
+    #expect(ReminderPermissionState(.provisional) == .provisional)
+    #expect(ReminderPermissionState(.ephemeral) == .provisional)
+    #expect(ReminderPermissionState(.notDetermined) == .notDetermined)
+
+    #expect(ReminderPermissionState.denied.needsUserAction)
+    #expect(ReminderPermissionState.notDetermined.needsUserAction)
+    #expect(!ReminderPermissionState.granted.needsUserAction)
+    #expect(!ReminderPermissionState.provisional.needsUserAction)
+}
+
+@Test func everyNotificationFailureMessageIsActionable() {
+    for state in [ReminderPermissionState.granted, .provisional, .denied, .notDetermined] {
+        #expect(!state.title.isEmpty)
+        #expect(!state.guidance.isEmpty)
+    }
+    #expect(ReminderDeliveryProblem.permissionDenied.message.contains("系统设置"))
+    #expect(ReminderDeliveryProblem.schedulingFailed("容量不足").message.contains("容量不足"))
+}
+
+@Test func deniedPermissionIsReportedNotJustLogged() async throws {
+    let recorder = ProblemRecorder()
+    let delivery = RecordingNotificationDelivery(authorizationGranted: false, status: .denied)
+    let scheduler = NotificationScheduler(delivery: delivery) { problem in
+        await recorder.record(problem)
+    }
+
+    await scheduler.schedule(
+        ReminderRequest(itemID: UUID(), title: "任务", body: "b", triggerDate: .now.addingTimeInterval(3_600))
+    )
+
+    #expect(await recorder.problems() == [.permissionDenied])
+}
+
+@Test func undecidedPermissionDoesNotTriggerAFailureBanner() async throws {
+    let recorder = ProblemRecorder()
+    let delivery = RecordingNotificationDelivery(authorizationGranted: false, status: .notDetermined)
+    let scheduler = NotificationScheduler(delivery: delivery) { problem in
+        await recorder.record(problem)
+    }
+
+    await scheduler.schedule(
+        ReminderRequest(itemID: UUID(), title: "任务", body: "b", triggerDate: .now.addingTimeInterval(3_600))
+    )
+
+    // 还没做过决定不等于失败，弹「提醒不会送达」是误报。
+    #expect(await recorder.problems().isEmpty)
+}
+
+@Test func systemRejectingTheRequestIsReportedWithDetail() async throws {
+    let recorder = ProblemRecorder()
+    let delivery = RecordingNotificationDelivery(addError: StubAddFailure())
+    let scheduler = NotificationScheduler(delivery: delivery) { problem in
+        await recorder.record(problem)
+    }
+
+    await scheduler.schedule(
+        ReminderRequest(itemID: UUID(), title: "任务", body: "b", triggerDate: .now.addingTimeInterval(3_600))
+    )
+
+    let problems = await recorder.problems()
+    #expect(problems.count == 1)
+    if case .schedulingFailed(let detail)? = problems.first {
+        #expect(detail.contains("系统拒绝了这条提醒"))
+    } else {
+        #expect(false, "应该报调度失败，而不是静默")
+    }
+}
+
 // MARK: - F-11 通知调度按任务 id 串行化
 
 /// 线程安全的记录型出口：用 actor 存事件序列，避免并发 append 丢写。
 private actor RecordingNotificationDelivery: NotificationDelivering {
     private let authorizationGranted: Bool
+    private let status: UNAuthorizationStatus
+    private let addError: Error?
     private var eventLog: [String] = []
     private var addedRequests: [ReminderRequest] = []
 
-    init(authorizationGranted: Bool = true) {
+    init(
+        authorizationGranted: Bool = true,
+        status: UNAuthorizationStatus = .authorized,
+        addError: Error? = nil
+    ) {
         self.authorizationGranted = authorizationGranted
+        self.status = status
+        self.addError = addError
     }
 
     func waitForAuthorization() async -> Bool {
@@ -101,6 +187,8 @@ private actor RecordingNotificationDelivery: NotificationDelivering {
         return authorizationGranted
     }
 
+    func authorizationStatus() async -> UNAuthorizationStatus { status }
+
     func removePending(identifier: String) async {
         try? await Task.sleep(nanoseconds: 5_000_000)
         eventLog.append("remove:\(identifier)")
@@ -108,6 +196,7 @@ private actor RecordingNotificationDelivery: NotificationDelivering {
 
     func add(_ request: ReminderRequest) async throws {
         try? await Task.sleep(nanoseconds: 5_000_000)
+        if let addError { throw addError }
         eventLog.append("add:\(request.title)")
         addedRequests.append(request)
     }
@@ -115,6 +204,16 @@ private actor RecordingNotificationDelivery: NotificationDelivering {
     func snapshot() -> (events: [String], added: [ReminderRequest], lastEvent: String?) {
         (eventLog, addedRequests, eventLog.last)
     }
+}
+
+private actor ProblemRecorder {
+    private var recorded: [ReminderDeliveryProblem] = []
+
+    func record(_ problem: ReminderDeliveryProblem) {
+        recorded.append(problem)
+    }
+
+    func problems() -> [ReminderDeliveryProblem] { recorded }
 }
 
 /// 可控门控版：第一次授权等待会被卡在门上，等测试安排好第二次提交后再放行，
@@ -138,6 +237,8 @@ private actor GatedNotificationDelivery: NotificationDelivering {
     func removePending(identifier: String) async {
         eventLog.append("remove:\(identifier)")
     }
+
+    func authorizationStatus() async -> UNAuthorizationStatus { .authorized }
 
     func add(_ request: ReminderRequest) async throws {
         eventLog.append("add:\(request.title)")

@@ -789,6 +789,8 @@ private struct ProfileSettingsView: View {
 private struct ReminderSettingsView: View {
     @Bindable var settings: UserSettings
 
+    @State private var permissionState: ReminderPermissionState?
+
     private var reminderDate: Binding<Date> {
         Binding {
             Calendar.current.date(
@@ -847,13 +849,42 @@ private struct ReminderSettingsView: View {
                         }
                     }
                 }
+
+                SystemPanel(title: "通知权限", detail: "以系统里的实际设置为准，不只是 App 内的开关") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        AppSettingsRow(
+                            icon: permissionState?.needsUserAction == true ? "bell.slash" : "bell.badge",
+                            title: permissionState?.title ?? "正在检查通知权限…",
+                            subtitle: permissionState.map { $0.guidance } ?? "正在读取系统设置中的状态。",
+                            iconColor: permissionState == .granted ? FamilyUI.success : FamilyUI.warning
+                        )
+
+                        if permissionState?.needsUserAction == true {
+                            SystemPanelDivider()
+                            Button {
+                                openSystemNotificationSettings()
+                            } label: {
+                                AppSettingsRow(icon: "gearshape", title: "前往系统设置开启通知", showsChevron: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
             .padding(.horizontal, AppSpacing.pageHorizontal)
             .padding(.vertical, 16)
         }
         .background(FamilyUI.pageBackground.ignoresSafeArea())
+        .task {
+            permissionState = await NotificationService.permissionState()
+        }
         .navigationTitle("提醒时间")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func openSystemNotificationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 

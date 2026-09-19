@@ -68,6 +68,78 @@ final class PlanNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNot
     }
 }
 
+/// 通知权限的状态映射。
+///
+/// 之前授权被拒只在日志里留一行，用户打开提醒开关后以为生效了，
+/// 实际到期什么都不弹。
+enum ReminderPermissionState: Equatable {
+    case granted
+    case provisional
+    case denied
+    case notDetermined
+
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .authorized: self = .granted
+        case .provisional, .ephemeral: self = .provisional
+        case .denied: self = .denied
+        default: self = .notDetermined
+        }
+    }
+
+    /// 需要用户去系统设置里动手的状态。
+    var needsUserAction: Bool {
+        switch self {
+        case .denied, .notDetermined: return true
+        case .granted, .provisional: return false
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .granted: return "通知已开启"
+        case .provisional: return "通知可静默显示"
+        case .denied: return "通知已被拒绝"
+        case .notDetermined: return "通知尚未授权"
+        }
+    }
+
+    var guidance: String {
+        switch self {
+        case .granted:
+            return "到期会按任务日期提醒你。"
+        case .provisional:
+            return "通知会先进通知中心，不弹窗；仍会按时送达。"
+        case .denied:
+            return "系统已拒绝通知权限，任务到期不会有任何提醒。请到系统设置中为 1Day 打开通知。"
+        case .notDetermined:
+            return "还没有请求过通知权限。创建带日期的任务时会向你确认。"
+        }
+    }
+}
+
+/// 提醒没能排上的原因，用于给用户可操作的反馈。
+enum ReminderDeliveryProblem: Equatable {
+    case permissionDenied
+    case schedulingFailed(String)
+
+    var title: String {
+        switch self {
+        case .permissionDenied: return "提醒不会送达"
+        case .schedulingFailed: return "提醒设置失败"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .permissionDenied:
+            return ReminderPermissionState.denied.guidance
+        case .schedulingFailed(let detail):
+            return "系统没有接受这条提醒：\(detail)。任务本身已经保存，但可能不会按时提醒你。"
+        }
+    }
+}
+
 /// 一次提醒所需的值拷贝。
 ///
 /// 必须是纯值：旧实现把 `PlanItem` 带进 `Task { }`，跨并发边界访问 @Model，
@@ -88,6 +160,7 @@ struct ReminderRequest: Equatable, Sendable {
 /// 通知中心的可替换出口，便于单测注入。
 protocol NotificationDelivering: Sendable {
     func waitForAuthorization() async -> Bool
+    func authorizationStatus() async -> UNAuthorizationStatus
     func removePending(identifier: String) async
     func add(_ request: ReminderRequest) async throws
 }
@@ -95,6 +168,10 @@ protocol NotificationDelivering: Sendable {
 struct UserNotificationDelivery: NotificationDelivering {
     func waitForAuthorization() async -> Bool {
         await NotificationService.requestAuthorizationIfNeeded()
+    }
+
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await NotificationService.currentAuthorizationStatus()
     }
 
     func removePending(identifier: String) async {
@@ -132,12 +209,21 @@ actor NotificationScheduler {
     static let shared = NotificationScheduler(delivery: UserNotificationDelivery())
 
     private let delivery: NotificationDelivering
+    private let report: @Sendable (ReminderDeliveryProblem) async -> Void
     private var generations: [UUID: Int] = [:]
     private var tails: [UUID: Task<Void, Never>] = [:]
     private var chainSerials: [UUID: Int] = [:]
 
-    init(delivery: NotificationDelivering) {
+    init(
+        delivery: NotificationDelivering,
+        report: @escaping @Sendable (ReminderDeliveryProblem) async -> Void = { problem in
+            await MainActor.run {
+                GlobalBannerCenter.shared.show(title: problem.title, message: problem.message, tone: .warning)
+            }
+        }
+    ) {
         self.delivery = delivery
+        self.report = report
     }
 
     func schedule(_ request: ReminderRequest) async {
@@ -172,7 +258,14 @@ actor NotificationScheduler {
             return
         }
         guard await delivery.waitForAuthorization() else {
-            AppLogger.warning("Notification permission not granted for \(request.itemID)")
+            let state = ReminderPermissionState(await delivery.authorizationStatus())
+            switch state {
+            case .denied:
+                // 用户已经在系统里关掉了，只写日志等于默默什么都不说。
+                await report(.permissionDenied)
+            default:
+                AppLogger.warning("Notification not authorized (\(state.title)) for \(request.itemID)")
+            }
             return
         }
         guard isCurrent(request.itemID, generation) else {
@@ -185,6 +278,7 @@ actor NotificationScheduler {
             AppLogger.data("Scheduled task reminder: \(request.itemID)")
         } catch {
             AppLogger.dataError("Failed to schedule task reminder: \(error.localizedDescription)")
+            await report(.schedulingFailed(error.localizedDescription))
         }
     }
 
@@ -262,6 +356,10 @@ enum NotificationService {
     /// 当前授权状态；`notDetermined` 时不弹系统弹窗（用于失败反馈，见 F-13）。
     static func currentAuthorizationStatus() async -> UNAuthorizationStatus {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    static func permissionState() async -> ReminderPermissionState {
+        ReminderPermissionState(await currentAuthorizationStatus())
     }
 
     static func requestAuthorizationIfNeeded() async -> Bool {
