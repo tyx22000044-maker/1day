@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SwiftLint
+        run: |
+          if ! which swiftlint >/dev/null; then
+            brew install swiftlint || true
+          fi
+          if which swiftlint >/dev/null; then
+            swiftlint lint --quiet
+          else
+            echo "swiftlint unavailable, skipping"
+          fi
+
+      - name: Build
+        run: |
+          xcodebuild -project 1Day.xcodeproj -scheme 1Day \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug build CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild -project 1Day.xcodeproj -scheme 1Day \
+            -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' \
+            test CODE_SIGNING_ALLOWED=NO

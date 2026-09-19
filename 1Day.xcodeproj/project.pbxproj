@@ -18,6 +18,7 @@
 		4E2D21E5FC926EDD16B12558 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16412482E236FE8ACEFDF9B /* PrimaryButton.swift */; };
 		5B3A24FBAFD8C6D2B4E47187 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54ECCCE021D06851A74FDE3A /* KeychainService.swift */; };
 		5EC823397BB1F8995FAA854D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8EBF8E5B16A1855305F6071D /* Assets.xcassets */; };
+		AD000000000000000000B101 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AD000000000000000000F101 /* PrivacyInfo.xcprivacy */; };
 		61C8C5B0F65B4F44A2E5D102 /* PlanItemService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C8C5AFF65B4F44A2E5D102 /* PlanItemService.swift */; };
 		61C8C5B2F65B4F44A2E5D102 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C8C5B1F65B4F44A2E5D102 /* NotificationService.swift */; };
 		61C8C5B4F65B4F44A2E5D102 /* AIChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C8C5B3F65B4F44A2E5D102 /* AIChatView.swift */; };
@@ -93,6 +94,7 @@
 		70E74A980F5B5DA0073A4708 /* AIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClient.swift; sourceTree = "<group>"; };
 		86BE8981F0C6D9AAC7DD9CC0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		8EBF8E5B16A1855305F6071D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AD000000000000000000F101 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9350E211750D950E53A30BAF /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		94562F27985D77602C130C98 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		98F2DD5650A424E6CDFE6C6E /* AIClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClients.swift; sourceTree = "<group>"; };
@@ -268,6 +270,7 @@
 			isa = PBXGroup;
 			children = (
 				8EBF8E5B16A1855305F6071D /* Assets.xcassets */,
+				AD000000000000000000F101 /* PrivacyInfo.xcprivacy */,
 				9C4A4915247D2295ABE47DB0 /* ContentView.swift */,
 				9350E211750D950E53A30BAF /* Extensions.swift */,
 				6E6D9754815722A7AA79EE1C /* OneDayApp.swift */,
@@ -440,7 +443,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				5EC823397BB1F8995FAA854D /* Assets.xcassets in Resources */,
-			843AA36F1E1C47E887260F5B /* Archivo-400.ttf in Resources */,
+				AD000000000000000000B101 /* PrivacyInfo.xcprivacy in Resources */,
+				843AA36F1E1C47E887260F5B /* Archivo-400.ttf in Resources */,
 			9360EF66F8E34928B231CEC6 /* Archivo-500.ttf in Resources */,
 			25C365CBFBCE45C2A4852B5B /* Archivo-600.ttf in Resources */,
 			E87816976E1B434CB090CA4D /* Archivo-700.ttf in Resources */,

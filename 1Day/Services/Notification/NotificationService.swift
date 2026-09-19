@@ -46,7 +46,8 @@ final class PlanNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNot
     @MainActor
     private func completeTask(itemID: UUID) {
         do {
-            let container = try ModelContainer(for: PlanItem.self, Note.self, UserSettings.self, AIChatMessage.self)
+            // 复用 App 主容器，避免在同一个 store 上并存第二个容器。
+            let container = AppContainer.current
             var descriptor = FetchDescriptor<PlanItem>(
                 predicate: #Predicate { item in
                     item.id == itemID
