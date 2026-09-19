@@ -84,6 +84,52 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-20 笔记草稿清理规则
+
+@Test func onlyNeverWrittenDraftsAreDiscardedOnDeparture() {
+    // 点 + 建出来、一个字没写就返回 → 清理草稿
+    #expect(NoteEditorPolicy.discardEmptyDraftOnDeparture(openedEmpty: true, isNowEmpty: true))
+    // 曾经有内容、被用户清空 → 必须留着，删除交给列表里的显式操作
+    #expect(!NoteEditorPolicy.discardEmptyDraftOnDeparture(openedEmpty: false, isNowEmpty: true))
+    #expect(!NoteEditorPolicy.discardEmptyDraftOnDeparture(openedEmpty: true, isNowEmpty: false))
+    #expect(!NoteEditorPolicy.discardEmptyDraftOnDeparture(openedEmpty: false, isNowEmpty: false))
+}
+
+@Test func emptiedExistingNoteSurvivesTheDepartureCleanup() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let note = Note(title: "会议记录", content: "决定周五交付")
+    context.insert(note)
+    try context.save()
+
+    let openedEmpty = note.isEmpty
+    note.content = ""
+    note.title = ""
+    if NoteEditorPolicy.discardEmptyDraftOnDeparture(openedEmpty: openedEmpty, isNowEmpty: note.isEmpty) {
+        context.delete(note)
+    }
+    try context.save()
+
+    let remaining = try ModelContext(container).fetch(FetchDescriptor<Note>())
+    #expect(remaining.count == 1)
+    #expect(remaining.first?.displayTitle == "空笔记")
+}
+
+@Test func unwrittenDraftIsStillCleanedUp() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let draft = Note()
+    context.insert(draft)
+    try context.save()
+
+    if NoteEditorPolicy.discardEmptyDraftOnDeparture(openedEmpty: draft.isEmpty, isNowEmpty: draft.isEmpty) {
+        context.delete(draft)
+    }
+    try context.save()
+
+    #expect(try ModelContext(container).fetch(FetchDescriptor<Note>()).isEmpty)
+}
+
 // MARK: - F-19 UserSettings 单例保证
 
 @Test func newUserSettingsAllShareTheSingletonID() {
