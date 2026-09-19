@@ -969,7 +969,10 @@ private actor GatedNotificationDelivery: NotificationDelivering {
     completed.status = .completed
     #expect(NotificationService.reminderRequest(for: completed) == nil)
     #expect(NotificationService.reminderRequest(for: PlanItem(title: "未安排", dueDate: nil)) == nil)
-    #expect(NotificationService.reminderRequest(for: PlanItem(title: "过期", dueDate: .now.addingTimeInterval(-3_600))) == nil)
+    // 用「昨天零点」而不是「一小时前」：提醒时间落在 due 当天，
+    // 一小时前若当天默认提醒点（如 09:00）还没到，就仍算未来提醒。
+    let yesterday = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -1, to: .now)!)
+    #expect(NotificationService.reminderRequest(for: PlanItem(title: "过期", dueDate: yesterday)) == nil)
 }
 
 // MARK: - F-10 计划上下文按意图最小化外发
