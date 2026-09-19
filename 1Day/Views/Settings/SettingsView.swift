@@ -604,7 +604,7 @@ private struct InAppMessage: Identifiable {
     let body: String
 }
 
-private struct StaticInfoView: View {
+struct StaticInfoView: View {
     @Environment(\.dismiss) private var dismiss
 
     let title: String
@@ -694,9 +694,9 @@ private struct StaticInfoView: View {
             footer: "1Day v\(oneDayVersion) · © 2026",
             sections: [
                 StaticInfoSection(icon: "lock.shield.fill", title: "本地数据", body: "任务、笔记、个人资料和设置默认保存在本机的 SwiftData 数据库中。"),
-                StaticInfoSection(icon: "sparkles", title: "AI 配置", body: "API Key 存储在 iOS Keychain 中，不会进入 JSON 备份。使用 AI 功能时，输入内容会发送给你选择的服务商。"),
+                StaticInfoSection(icon: "sparkles", title: "AI 配置", body: "API Key 存储在 iOS Keychain 中，不会进入 JSON 备份。使用 AI 功能时，你输入的内容和最近 8 条对话会发送给你选择的服务商；只有这句话确实与任务、日程有关时，才会附带少量任务标题作为上下文。笔记正文和证件信息不会发送。"),
                 StaticInfoSection(icon: "checkmark.seal.fill", title: "AI 使用边界", body: "AI 只帮助整理任务、笔记和计划草稿，不提供医疗、法律或金融建议。AI 输出可能遗漏或误解输入内容，保存或执行前请自行核对；涉及高风险决定时请咨询合格专业人士。"),
-                StaticInfoSection(icon: "bell.fill", title: "通知", body: "如果开启任务提醒，系统会根据任务日期和提醒时间创建本地通知。完成、删除或清空任务时会取消对应提醒。")
+                StaticInfoSection(icon: "bell.fill", title: "通知", body: "如果开启任务提醒，系统会根据任务日期和提醒时间创建本地通知。通知的标题和正文会直接出现在锁屏和通知中心里，不需要解锁就能看到——任务标题和备注里不要写只在 App 内查看的敏感内容。完成、删除或清空任务时会取消对应提醒。")
             ]
         )
     }
@@ -706,7 +706,7 @@ private var oneDayVersion: String {
     (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "—"
 }
 
-private struct StaticInfoSection: Identifiable {
+struct StaticInfoSection: Identifiable {
     var id: String { title }
     let icon: String
     let title: String

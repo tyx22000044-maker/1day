@@ -1888,3 +1888,22 @@ private func makeTempDirectory() throws -> URL {
     let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!
     #expect(draft?.dueDate.map { Calendar.current.isDate($0, inSameDayAs: tomorrow) } == true)
 }
+
+// MARK: - §16 隐私说明必须说清锁屏可见和外发范围
+
+@Test @MainActor func privacyNoticeStatesLockScreenVisibility() {
+    let sections = StaticInfoView.privacy.sections
+    let notification = sections.first { $0.title == "通知" }
+    let body = notification?.body ?? ""
+
+    #expect(body.contains("锁屏"))
+    #expect(body.contains("不要写"))
+}
+
+@Test @MainActor func privacyNoticeSpellsOutWhatLeavesTheDevice() {
+    let ai = StaticInfoView.privacy.sections.first { $0.title == "AI 配置" }
+    let body = ai?.body ?? ""
+
+    #expect(body.contains("最近 8 条对话"))
+    #expect(body.contains("笔记正文和证件信息不会发送"))
+}
