@@ -227,7 +227,9 @@ private struct BackupEnvelope: Codable {
     var settings: UserSettingsBackup?
 }
 
-private struct PlanItemBackup: Codable {
+/// 任务的可携带值快照。除了备份文件，也充当「删除后撤销」的恢复来源——
+/// 删除之后 model 对象已经失效，只有值拷贝能把它原样建回来。
+struct PlanItemBackup: Codable {
     var id: UUID
     var title: String
     var notes: String
@@ -290,7 +292,8 @@ private struct PlanItemBackup: Codable {
     }
 }
 
-private struct NoteBackup: Codable {
+/// 笔记的值快照，同样用于删除后的撤销恢复。
+struct NoteBackup: Codable {
     var id: UUID
     var title: String
     var content: String

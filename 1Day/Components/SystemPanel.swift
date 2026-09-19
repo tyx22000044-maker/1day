@@ -185,6 +185,48 @@ struct FamilyTaskRow: View {
     }
 }
 
+/// 删除后的短时撤销条。Today / Plan / Notes 共用一套外观，
+/// 保证「误删还能拿回来」这条能力在各列表里长得一样。
+struct UndoDeleteToast: View {
+    let label: String
+    let title: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "trash.slash.fill")
+                .foregroundStyle(FamilyUI.danger)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(FamilyTypography.sectionLabel)
+                    .tracking(1.2)
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(FamilyTypography.text(.subheadline))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Button(action: onUndo) {
+                Text("撤销")
+                    .font(FamilyTypography.text(.subheadline, .bold))
+                    .foregroundStyle(FamilyUI.accent)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(FamilyUI.panelBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)
+                .stroke(FamilyUI.panelBorder, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius))
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label)：\(title)")
+        .accessibilityHint("点按撤销可恢复")
+    }
+}
+
 struct SystemStatusBadge: View {
     enum Tone {
         case neutral

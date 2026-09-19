@@ -14,6 +14,10 @@ struct TodayView: View {
     @State private var isProgressExpanded = true
     @State private var scheduleLaterItem: PlanItem?
     @State private var scheduleLaterTitle = ""
+    @State private var pendingTaskDelete: PlanItem?
+    @State private var undoTaskSnapshot: PlanItemBackup?
+    @State private var undoTaskTitle = ""
+    @State private var undoWindowTask: Task<Void, Never>?
     @FocusState private var isInputFocused: Bool
 
     /// Single pass over allItems producing the three today-relevant buckets at once,
@@ -131,7 +135,13 @@ struct TodayView: View {
                 TaskEditorSheet(defaultDueDate: selectedDate)
             }
             .overlay(alignment: .bottom) {
-                if scheduleLaterItem != nil {
+                if let snapshot = undoTaskSnapshot {
+                    UndoDeleteToast(label: "已删除任务", title: undoTaskTitle) {
+                        undoTaskDelete(snapshot)
+                    }
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if scheduleLaterItem != nil {
                     ScheduleLaterToast(title: scheduleLaterTitle) {
                         if let item = scheduleLaterItem {
                             PlanItemService.moveToUnscheduled(item)
@@ -143,6 +153,20 @@ struct TodayView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: scheduleLaterItem != nil)
+            .animation(.easeInOut(duration: 0.25), value: undoTaskSnapshot != nil)
+            .confirmationDialog(
+                "删除这条任务？",
+                isPresented: Binding(
+                    get: { pendingTaskDelete != nil },
+                    set: { if !$0 { pendingTaskDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("删除", role: .destructive) { confirmTaskDelete() }
+                Button("取消", role: .cancel) { pendingTaskDelete = nil }
+            } message: {
+                Text("删除后 5 秒内可以在列表底部撤销，超时后就只能从备份恢复了。")
+            }
         }
     }
 
@@ -358,7 +382,7 @@ struct TodayView: View {
                 }
             }
             Button(role: .destructive) {
-                deleteItem(item)
+                requestTaskDelete(item)
             } label: {
                 Label("删除", systemImage: "trash")
             }
@@ -367,9 +391,39 @@ struct TodayView: View {
 
     // MARK: - Actions
 
-    private func deleteItem(_ item: PlanItem) {
+    /// 长按菜单里的删除只负责「问一句」，真正动手在 confirmTaskDelete。
+    private func requestTaskDelete(_ item: PlanItem) {
+        pendingTaskDelete = item
         HapticEngine.warning()
-        PlanItemService.delete(item, in: modelContext)
+    }
+
+    private func confirmTaskDelete() {
+        guard let item = pendingTaskDelete else { return }
+        pendingTaskDelete = nil
+        let snapshot = DeletionCoordinator.snapshot(item)
+        guard DeletionCoordinator.delete(item, in: modelContext) else { return }
+        undoTaskSnapshot = snapshot
+        undoTaskTitle = snapshot.title
+        startUndoWindow()
+    }
+
+    private func undoTaskDelete(_ snapshot: PlanItemBackup) {
+        undoWindowTask?.cancel()
+        undoWindowTask = nil
+        undoTaskSnapshot = nil
+        HapticEngine.tap()
+        _ = DeletionCoordinator.restore(snapshot, in: modelContext)
+    }
+
+    private func startUndoWindow() {
+        undoWindowTask?.cancel()
+        undoWindowTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.25)) { undoTaskSnapshot = nil }
+            }
+        }
     }
 
     private func createQuickTask(dueDate: Date? = nil, isUnscheduled: Bool = false) {

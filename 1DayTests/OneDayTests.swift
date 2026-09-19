@@ -84,6 +84,72 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-21 确认删除后的撤销恢复
+
+@Test func deletingThenRestoringATaskKeepsEveryField() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let calendar = Calendar.current
+    let due = calendar.startOfDay(for: Date().addingTimeInterval(86_400))
+    let reminder = calendar.date(bySettingHour: 20, minute: 5, second: 0, of: Date())!
+    let item = PlanItem(title: "交房租", notes: "转招行", dueDate: due, priority: .high, reminderTime: reminder)
+    context.insert(item)
+    try context.save()
+
+    let snapshot = DeletionCoordinator.snapshot(item)
+    #expect(DeletionCoordinator.delete(item, in: context))
+    #expect(try context.fetch(FetchDescriptor<PlanItem>()).isEmpty)
+
+    let restored = DeletionCoordinator.restore(snapshot, in: context)
+
+    let stored = try ModelContext(container).fetch(FetchDescriptor<PlanItem>())
+    #expect(stored.count == 1)
+    let back = try #require(stored.first)
+    #expect(back.id == restored.id)
+    #expect(back.title == "交房租")
+    #expect(back.notes == "转招行")
+    #expect(back.priority == .high)
+    #expect(calendar.isDate(back.dueDate ?? .distantPast, inSameDayAs: due))
+    #expect(calendar.isDate(back.reminderTime ?? .distantPast, equalTo: reminder, toGranularity: .minute))
+}
+
+@Test func restoringADeletedCompletedTaskKeepsItsCompletionTime() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let item = PlanItem(title: "已经做完的", dueDate: Calendar.current.startOfDay(for: .now))
+    item.status = .completed
+    let finishedAt = try #require(item.completedAt)
+    context.insert(item)
+    try context.save()
+
+    let snapshot = DeletionCoordinator.snapshot(item)
+    DeletionCoordinator.delete(item, in: context)
+    let restored = DeletionCoordinator.restore(snapshot, in: context)
+
+    // 撤销回来的任务不能变成未完成的。
+    #expect(restored.isCompleted)
+    #expect(Calendar.current.isDate(restored.completedAt ?? .distantPast, equalTo: finishedAt, toGranularity: .second))
+    #expect(try ModelContext(container).fetch(FetchDescriptor<PlanItem>()).count == 1)
+}
+
+@Test func deletingThenRestoringANoteKeepsItsContent() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let note = Note(title: "会议记录", content: "决定周五交付")
+    context.insert(note)
+    try context.save()
+
+    let snapshot = DeletionCoordinator.snapshot(note)
+    #expect(DeletionCoordinator.delete(note, in: context))
+    #expect(try context.fetch(FetchDescriptor<Note>()).isEmpty)
+
+    DeletionCoordinator.restore(snapshot, in: context)
+
+    let stored = try ModelContext(container).fetch(FetchDescriptor<Note>())
+    #expect(stored.map(\.title) == ["会议记录"])
+    #expect(stored.first?.content == "决定周五交付")
+}
+
 // MARK: - F-20 笔记草稿清理规则
 
 @Test func onlyNeverWrittenDraftsAreDiscardedOnDeparture() {

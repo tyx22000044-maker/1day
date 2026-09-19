@@ -9,6 +9,10 @@ struct PlanListView: View {
 
     @State private var isShowingCreateSheet = false
     @State private var schedulingItem: PlanItem?
+    @State private var pendingTaskDelete: PlanItem?
+    @State private var undoTaskSnapshot: PlanItemBackup?
+    @State private var undoTaskTitle = ""
+    @State private var undoWindowTask: Task<Void, Never>?
 
     private var selectedDate: Date {
         Calendar.current.startOfDay(for: appViewModel.selectedDate)
@@ -109,7 +113,7 @@ struct PlanListView: View {
                                             }
                                         }
                                         Button(role: .destructive) {
-                                            deleteItem(item)
+                                            requestTaskDelete(item)
                                         } label: {
                                             Label("删除", systemImage: "trash")
                                         }
@@ -152,12 +156,65 @@ struct PlanListView: View {
             .sheet(item: $schedulingItem) { item in
                 QuickScheduleSheet(item: item)
             }
+            .overlay(alignment: .bottom) {
+                if let snapshot = undoTaskSnapshot {
+                    UndoDeleteToast(label: "已删除任务", title: undoTaskTitle) {
+                        undoTaskDelete(snapshot)
+                    }
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: undoTaskSnapshot != nil)
+            .confirmationDialog(
+                "删除这条任务？",
+                isPresented: Binding(
+                    get: { pendingTaskDelete != nil },
+                    set: { if !$0 { pendingTaskDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("删除", role: .destructive) { confirmTaskDelete() }
+                Button("取消", role: .cancel) { pendingTaskDelete = nil }
+            } message: {
+                Text("删除后 5 秒内可以在列表底部撤销，超时后就只能从备份恢复了。")
+            }
         }
     }
 
-    private func deleteItem(_ item: PlanItem) {
+    /// 长按菜单的删除只负责问一句，真删除在 confirmTaskDelete。
+    private func requestTaskDelete(_ item: PlanItem) {
+        pendingTaskDelete = item
         HapticEngine.warning()
-        PlanItemService.delete(item, in: modelContext)
+    }
+
+    private func confirmTaskDelete() {
+        guard let item = pendingTaskDelete else { return }
+        pendingTaskDelete = nil
+        let snapshot = DeletionCoordinator.snapshot(item)
+        guard DeletionCoordinator.delete(item, in: modelContext) else { return }
+        undoTaskSnapshot = snapshot
+        undoTaskTitle = snapshot.title
+        startUndoWindow()
+    }
+
+    private func undoTaskDelete(_ snapshot: PlanItemBackup) {
+        undoWindowTask?.cancel()
+        undoWindowTask = nil
+        undoTaskSnapshot = nil
+        HapticEngine.tap()
+        _ = DeletionCoordinator.restore(snapshot, in: modelContext)
+    }
+
+    private func startUndoWindow() {
+        undoWindowTask?.cancel()
+        undoWindowTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.25)) { undoTaskSnapshot = nil }
+            }
+        }
     }
 }
 

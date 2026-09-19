@@ -9,6 +9,10 @@ struct NotesListView: View {
     @State private var searchText = ""
     @State private var debouncedSearchText = ""
     @State private var editingNote: Note?
+    @State private var pendingNoteDelete: Note?
+    @State private var undoNoteSnapshot: NoteBackup?
+    @State private var undoNoteTitle = ""
+    @State private var undoWindowTask: Task<Void, Never>?
 
     private var filteredNotes: [Note] {
         guard !debouncedSearchText.isEmpty else { return notes }
@@ -53,7 +57,7 @@ struct NotesListView: View {
                                     .buttonStyle(.plain)
                                     .contextMenu {
                                         Button(role: .destructive) {
-                                            deleteNote(note)
+                                            requestNoteDelete(note)
                                         } label: {
                                             Label("删除", systemImage: "trash")
                                         }
@@ -94,6 +98,29 @@ struct NotesListView: View {
                     }
                 }
             }
+            .overlay(alignment: .bottom) {
+                if let snapshot = undoNoteSnapshot {
+                    UndoDeleteToast(label: "已删除笔记", title: undoNoteTitle) {
+                        undoNoteDelete(snapshot)
+                    }
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: undoNoteSnapshot != nil)
+            .confirmationDialog(
+                "删除这条笔记？",
+                isPresented: Binding(
+                    get: { pendingNoteDelete != nil },
+                    set: { if !$0 { pendingNoteDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("删除", role: .destructive) { confirmNoteDelete() }
+                Button("取消", role: .cancel) { pendingNoteDelete = nil }
+            } message: {
+                Text("删除后 5 秒内可以在列表底部撤销，超时后就只能从备份恢复了。")
+            }
         }
     }
 
@@ -103,9 +130,39 @@ struct NotesListView: View {
         editingNote = note
     }
 
-    private func deleteNote(_ note: Note) {
+    /// 长按菜单的删除只负责问一句，真删除在 confirmNoteDelete。
+    private func requestNoteDelete(_ note: Note) {
+        pendingNoteDelete = note
         HapticEngine.warning()
-        modelContext.delete(note)
+    }
+
+    private func confirmNoteDelete() {
+        guard let note = pendingNoteDelete else { return }
+        pendingNoteDelete = nil
+        let snapshot = DeletionCoordinator.snapshot(note)
+        guard DeletionCoordinator.delete(note, in: modelContext) else { return }
+        undoNoteSnapshot = snapshot
+        undoNoteTitle = snapshot.title.isEmpty ? String(snapshot.content.prefix(20)) : snapshot.title
+        startUndoWindow()
+    }
+
+    private func undoNoteDelete(_ snapshot: NoteBackup) {
+        undoWindowTask?.cancel()
+        undoWindowTask = nil
+        undoNoteSnapshot = nil
+        HapticEngine.tap()
+        _ = DeletionCoordinator.restore(snapshot, in: modelContext)
+    }
+
+    private func startUndoWindow() {
+        undoWindowTask?.cancel()
+        undoWindowTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.25)) { undoNoteSnapshot = nil }
+            }
+        }
     }
 }
 
