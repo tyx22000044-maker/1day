@@ -273,7 +273,7 @@ struct AIChatView: View {
                 } label: {
                     Image(systemName: "camera.fill")
                         .fontWeight(.semibold)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 44, height: 44)
                         .background(FamilyUI.panelMutedBackground)
                         .foregroundStyle(canUseVision ? FamilyUI.accent : Color(.systemGray3))
                         .overlay(
@@ -292,7 +292,7 @@ struct AIChatView: View {
                 } label: {
                     Image(systemName: speechController.isRecording ? "mic.fill" : "mic")
                         .fontWeight(.semibold)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 44, height: 44)
                         .background(speechController.isRecording ? FamilyUI.danger : FamilyUI.panelMutedBackground)
                         .foregroundStyle(speechController.isRecording ? FamilyUI.paper : FamilyUI.ink)
                         .overlay(
@@ -304,7 +304,7 @@ struct AIChatView: View {
                 .disabled(viewModel.isLoading)
 
                 TextField("让 AI 帮你整理一件事...", text: $viewModel.inputText, axis: .vertical)
-                    .lineLimit(1)
+                    .lineLimit(1...4)
                     .textFieldStyle(.plain)
                     .font(.subheadline)
                     .focused($isInputFocused)
@@ -315,7 +315,7 @@ struct AIChatView: View {
                         }
                     }
                     .padding(.horizontal, 14)
-                    .frame(height: 38, alignment: .center)
+                    .frame(minHeight: 38, alignment: .center)
                     .background(FamilyUI.panelMutedBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
@@ -327,7 +327,7 @@ struct AIChatView: View {
                     Image(systemName: viewModel.isLoading ? "stop.fill" : "arrow.up")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(FamilyUI.paper)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 44, height: 44)
                         .background(FamilyUI.ink)
                         .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
                 }

@@ -42,7 +42,9 @@ struct AppSettingsRow: View {
                     .font(FamilyTypography.text(.subheadline, emphasizesValue ? .semibold : .regular))
                     .monospacedDigit()
                     .foregroundStyle(emphasizesValue ? FamilyUI.accent : .secondary)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if showsChevron {

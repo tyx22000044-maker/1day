@@ -61,9 +61,15 @@ enum FamilyTypography {
         Font.custom(postScriptName(for: weight), size: size)
     }
 
-    static let hero = fixed(38, .black)
-    static let pageTitle = fixed(32, .black)
-    static let sectionLabel = fixed(11, .semibold)
+    /// 需要随 Dynamic Type 放大的展示型字号。
+    ///
+    /// 之前 hero / pageTitle 走 `fixed`，等于把大字号用户的标题钉死在 38/32pt，
+    /// AX5 下标题被截断、按钮文字被压。`relativeTo:` 让系统按内容字号动态放大，
+    /// 只有徽标、tab 标签这类微型排版才继续用 `fixed`。
+    static let hero = Font.custom(postScriptName(for: .black), size: 38, relativeTo: .largeTitle)
+    static let heroNumber = Font.custom(postScriptName(for: .black), size: 34, relativeTo: .largeTitle)
+    static let pageTitle = Font.custom(postScriptName(for: .black), size: 32, relativeTo: .title)
+    static let sectionLabel = Font.custom(postScriptName(for: .semibold), size: 11, relativeTo: .footnote)
     static let badge = fixed(9, .bold)
     static let button = text(.subheadline, .bold)
 

@@ -252,6 +252,7 @@ struct DaySelectorView: View {
                 VStack(spacing: 2) {
                     Text(selectedDate.dayHeading(in: locale))
                         .font(FamilyTypography.text(.subheadline, .bold))
+                        .minimumScaleFactor(0.8)
                         .monospacedDigit()
                     Text(AppSettingsLocalization.text(isToday ? "今天" : "归档", isToday ? "TODAY" : "ARCHIVE", language: language))
                         .font(FamilyTypography.fixed(10, .semibold))

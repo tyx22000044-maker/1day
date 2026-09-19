@@ -193,7 +193,7 @@ struct TodayView: View {
                             .foregroundStyle(.secondary)
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
                             Text("\(snapshot.completedCount)")
-                                .font(FamilyTypography.fixed(34, .black))
+                                .font(FamilyTypography.heroNumber)
                                 .monospacedDigit()
                                 .foregroundStyle(.primary)
                             Text("/\(snapshot.totalCount)")
@@ -533,7 +533,8 @@ private struct ScheduleLaterToast: View {
                 .foregroundStyle(FamilyUI.success)
             Text("\(localized(.addedToToday))：\(title)")
                 .font(FamilyTypography.text(.subheadline))
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Button(localized(.scheduleLater)) {
                 onScheduleLater()

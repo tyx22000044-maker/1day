@@ -174,7 +174,8 @@ struct AIMessageBubble: View {
             if isUser { Spacer(minLength: 40) }
 
             AITextMessageBubble(content: message.content, isUser: isUser)
-                .frame(maxWidth: 280, alignment: isUser ? .trailing : .leading)
+                .frame(maxWidth: 340, alignment: isUser ? .trailing : .leading)
+                .fixedSize(horizontal: false, vertical: true)
                 .contextMenu {
                     Button {
                         UIPasteboard.general.string = message.content
