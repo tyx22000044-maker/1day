@@ -1,8 +1,9 @@
 # 1Day — 数据模型
 
-> 版本：v3.0 · 最后更新：2026-06-29
+> 版本：v3.1 · 最后更新：2026-09-20
 > 目的：保证所有开发者（含 AI Coding）对字段定义一致，避免字段名/类型前后不同。
-> 权威来源：PRD.md v3.0 第六节
+> V1.0 部分以代码为准（`1Day/Models/`、`1Day/Services/Backup/JSONBackupService.swift`）；
+> V1.1 及以后仍是规划，尚未落地。
 
 ---
 
@@ -14,7 +15,8 @@
 |------|------|------|
 | V1.0 | PlanItem | 任务（核心模型） |
 | V1.0 | Note | 独立笔记 |
-| V1.0 | UserSettings | 用户设置 |
+| V1.0 | UserSettings | 用户设置（全库单例） |
+| V1.0 | AIChatMessage | AI 对话历史与工具调用记录 |
 | V1.1 | Collection | 收藏集/项目分组 |
 | V1.1 | Tag | 标签 |
 | V1.2 | RecurrenceRule | 重复规则 |
@@ -32,16 +34,19 @@
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| id | UUID | ✅ | auto | 主键 |
+| id | UUID | ✅ | auto | 主键，`@Attribute(.unique)` |
 | title | String | ✅ | — | 任务标题 |
 | notes | String | ❌ | "" | 备注 |
 | dueDate | Date? | ❌ | nil | 截止日期，nil = "未安排" |
-| status | ItemStatus | ✅ | .pending | 任务状态 |
-| priority | Priority | ✅ | .none | 优先级 |
+| statusRawValue | String | ✅ | "pending" | 存储字段，`ItemStatus` 的 rawValue |
+| priorityRawValue | String | ✅ | "none" | 存储字段，`Priority` 的 rawValue |
+| reminderTime | Date? | ❌ | nil | 自定义提醒时间；只用它的时分，落在 `dueDate` 当天；nil 表示跟随全局默认 |
 | createdAt | Date | ✅ | now | 创建时间 |
 | updatedAt | Date | ✅ | now | 最后更新时间 |
-| completedAt | Date? | ❌ | nil | 完成时间，标记完成时写入 |
-| reminderTime | Date? | ❌ | nil | 自定义提醒时间，nil 则使用全局默认 |
+| completedAt | Date? | ❌ | nil | 完成时间，由 `status` setter 维护 |
+
+`status` 和 `priority` 在模型里是计算属性，读写上面的 rawValue 字段；未知 rawValue 会退回
+`.pending` / `.none`，以免旧数据直接崩溃。备份导入不允许这种回退（见「JSON 备份格式」）。
 
 **枚举 ItemStatus**：
 ```swift
@@ -61,32 +66,38 @@ enum Priority: String, Codable, CaseIterable {
 }
 ```
 
-**Swift 模型示例**：
+**Swift 模型（与代码一致）**：
 ```swift
 @Model
 final class PlanItem {
-    var id: UUID = UUID()
-    var title: String = ""
-    var notes: String = ""
+    @Attribute(.unique) var id: UUID
+    var title: String
+    var notes: String
     var dueDate: Date?
-    var status: ItemStatus = .pending
-    var priority: Priority = .none
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
-    var completedAt: Date?
+    var statusRawValue: String
+    var priorityRawValue: String
     var reminderTime: Date?
+    var createdAt: Date
+    var updatedAt: Date
+    var completedAt: Date?
+
+    var status: ItemStatus { get set }     // 经由 statusRawValue
+    var priority: Priority { get set }     // 经由 priorityRawValue
+    var isCompleted: Bool { get }
+    var isUnscheduled: Bool { get }
+    func isOverdue(asOf: Date) -> Bool     // 按天比较，不按时刻
 }
 ```
 
-**示例 JSON**（导出/AI 草稿）：
+**示例 JSON**（备份文件里的记录形态，见「JSON 备份格式」）：
 ```json
 {
   "id": "A1B2C3D4-...",
   "title": "交房租",
   "notes": "转账到房东招商银行",
   "dueDate": "2026-07-01T00:00:00Z",
-  "status": "pending",
-  "priority": "high",
+  "statusRawValue": "pending",
+  "priorityRawValue": "high",
   "createdAt": "2026-06-29T10:00:00Z",
   "updatedAt": "2026-06-29T10:00:00Z",
   "completedAt": null,
@@ -102,21 +113,24 @@ final class PlanItem {
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| id | UUID | ✅ | auto | 主键 |
+| id | UUID | ✅ | auto | 主键，`@Attribute(.unique)` |
 | title | String | ❌ | "" | 笔记标题，可为空 |
 | content | String | ❌ | "" | 笔记正文，纯文本 |
 | createdAt | Date | ✅ | now | 创建时间 |
 | updatedAt | Date | ✅ | now | 最后更新时间 |
 
-**Swift 模型示例**：
+**Swift 模型（与代码一致）**：
 ```swift
 @Model
 final class Note {
-    var id: UUID = UUID()
-    var title: String = ""
-    var content: String = ""
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
+    @Attribute(.unique) var id: UUID
+    var title: String
+    var content: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    var displayTitle: String { get }   // 标题 → 正文首 50 字 → 「空笔记」
+    var isEmpty: Bool { get }          // 标题和正文都是空白
 }
 ```
 
@@ -131,32 +145,73 @@ final class Note {
 
 用户设置，单例模型（App 内只有一条记录）。
 
+单例由两件事共同保证：新建记录一律使用固定 id `UserSettings.singletonID`
+（`1da01da0-0000-4000-8000-000000000001`），启动时 `SettingsBootstrap.ensureSettings(in:)`
+把历史遗留的多条记录收敛成 `createdAt` 最早的一条并显式 `save()`。
+`@Attribute(.unique)` 只挡得住相同 id 的重复插入，挡不住「两条不同 id 的设置」。
+
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| id | UUID | ✅ | auto | 主键 |
-| userName | String | ❌ | "" | 用户昵称 |
-| avatarImageData | Data? | ❌ | nil | 头像照片数据 |
-| defaultReminderTime | Date | ✅ | 09:00 | 默认提醒时间 |
-| appearance | Appearance | ✅ | .system | 外观模式 |
-| language | Language | ✅ | .system | 语言 |
+| id | UUID | ✅ | `singletonID` | 主键，`@Attribute(.unique)` |
+| dataSchemaVersion | Int | ✅ | 1 | 应用层数据版本（与 SwiftData schema 版本不同） |
+| nickname | String | ❌ | "" | 用户昵称 |
+| avatarSymbolName | String | ✅ | "person.crop.circle" | 无照片时的 SF Symbol 头像 |
+| avatarImageData | Data? | ❌ | nil | 头像照片数据（写入前压缩到 512 KB 内） |
+| languageRawValue | String | ✅ | "system" | `AppLanguage` 的 rawValue |
+| appearanceRawValue | String | ✅ | "system" | `AppearanceMode` 的 rawValue |
+| defaultReminderHour | Int | ✅ | 9 | 默认提醒小时（0–23） |
+| defaultReminderMinute | Int | ✅ | 0 | 默认提醒分钟（0–59） |
+| selectedAIProviderRawValue | String | ✅ | "claude" | `AIProvider` 的 rawValue |
+| selectedAIModel | String | ✅ | "claude-sonnet" | 模型 ID |
+| aiProcessingModeRawValue | String | ✅ | "ruleFirst" | `AIProcessingMode` 的 rawValue |
+| isAIConfigured | Bool | ✅ | false | 当前服务商是否真的有 Key（由 Keychain 实际内容重算） |
+| isHapticsEnabled | Bool | ✅ | true | 触觉开关 |
+| isSoundEffectsEnabled | Bool | ✅ | true | 声音开关 |
+| hasCompletedOnboarding | Bool | ✅ | false | 是否走完引导 |
+| createdAt | Date | ✅ | now | 创建时间 |
+| updatedAt | Date | ✅ | now | 最后更新时间 |
 
-**枚举 Appearance**：
+计算属性：`language`、`appearance`、`selectedAIProvider`、`aiProcessingMode`、
+`defaultReminderTime: DateComponents`、`reminderDate(on:)`（表单预填提醒时刻用）。
+
+**API Key 不是这个模型的字段**，它只存在 iOS Keychain，不进 SwiftData，也不进 JSON 备份。
+
+**枚举 AppearanceMode**：
 ```swift
-enum Appearance: String, Codable {
+enum AppearanceMode: String, Codable, CaseIterable {
     case system
     case light
     case dark
 }
 ```
 
-**枚举 Language**：
+**枚举 AppLanguage**：
 ```swift
-enum Language: String, Codable {
+enum AppLanguage: String, Codable, CaseIterable {
     case system
-    case zhHans  // 简体中文
-    case en      // English
+    case zhHans   // 简体中文
+    case english  // English
 }
 ```
+
+---
+
+### AIChatMessage
+
+AI 对话历史，用于把多轮上下文发给服务商，也记录一次工具调用产生的草稿。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| id | UUID | ✅ | auto | 主键，`@Attribute(.unique)` |
+| role | String | ✅ | — | "user" / "assistant" |
+| content | String | ✅ | "" | 消息正文 |
+| providerRawValue | String | ✅ | "claude" | 这条消息所属的服务商 |
+| createdAt | Date | ✅ | now | 创建时间 |
+| toolName | String? | ❌ | nil | 工具调用名，例如 `create_task` |
+| toolPayloadJSON | String? | ❌ | nil | 工具调用的值负载（草稿 JSON，非正式数据） |
+
+聊天历史会整体发给所选服务商，因此不应写入只在 App 内查看的敏感内容。
+它不进 JSON 备份，由「设置 → AI 配置 → 清空聊天历史」单独删除（有二次确认，不可恢复）。
 
 ---
 
@@ -341,13 +396,73 @@ enum ReviewType: String, Codable {
 
 ---
 
+## Schema 与迁移
+
+`1Day/Models/AppSchema.swift` 是模型类型的唯一清单：
+
+- `OneDaySchemaV1: VersionedSchema`（`versionIdentifier = Schema.Version(1, 0, 0)`）声明
+  `PlanItem`、`Note`、`UserSettings`、`AIChatMessage`。
+- `AppSchema.current` 把上面的版本包成 `Schema`，容器和单测都从这里取，不允许再各写一份模型列表。
+- `OneDayMigrationPlan: SchemaMigrationPlan` 的 `stages` 目前为空：现有变更都是新增可选字段，
+  由 SwiftData 做 lightweight migration。出现破坏性变更（改类型、改语义、需要回填）时，
+  在这里按版本顺序追加 `MigrationStage`，并同步更新 `BackupEnvelope.currentSchemaVersion`。
+
+模型列表散落在多处曾经导致真实故障：视图用一个容器、通知回调用另一个临时容器，
+两边在同一个 store 上并存就会写冲突。现在所有入口都通过 `AppContainer.current` 拿同一个容器。
+
+两个版本号各管各的：`OneDaySchemaV1.versionIdentifier` 是 SwiftData 的表结构版本，
+`UserSettings.currentDataSchemaVersion` 是业务数据语义版本，备份兼容看后者。
+
+---
+
+## JSON 备份格式
+
+导出文件名：`1Day-Backup-<yyyyMMdd-HHmmss>.json`，写入临时目录后由系统分享面板送出；
+App 不长期保存备份副本。
+
+**顶层信封**：
+
+```json
+{
+  "schemaVersion": 2,
+  "exportedAt": "2026-09-20T02:00:00Z",
+  "planItems": [ /* PlanItem 的值快照 */ ],
+  "notes": [ /* Note 的值快照 */ ],
+  "settings": { /* UserSettings 的值快照，可为缺失 */ }
+}
+```
+
+| schemaVersion | 差异 |
+|---------------|------|
+| 1 | 没有 `isHapticsEnabled` / `isSoundEffectsEnabled` |
+| 2 | 加入触觉与声音偏好；缺失这两个字段的旧备份恢复时保持目标设备当前值，不静默改回默认 |
+
+**不包含的内容**：API Key（只在 Keychain）、AI 聊天历史、证件照片（V1.3 规划，永不进备份）。
+
+**导入规则**（`JSONBackupService.restoreBackup`）：
+
+1. 整体解码并校验后才动手：`schemaVersion` 高于当前版本 → `unsupportedSchemaVersion`；
+   枚举 rawValue 读不懂、`title` 为空白、提醒小时不在 0–23、提醒分钟不在 0–59 → `invalidField(field:value:)`；
+   备份内部 id 重复 → `duplicateRecordID`。
+2. 校验通过后关闭 autosave，再删除现有任务/笔记、插入恢复对象（沿用原 id 和原时间戳）。
+3. `context.save()` 失败即 `context.rollback()`，现有数据回到导入前的状态——不存在「删了一半再导入失败」。
+4. 通知的取消与重排放在 `save()` 成功之后，避免恢复失败时留下指向已回滚记录的通知。
+
+恢复后的记录会做自洽修复：`completedAt` 按状态补齐，没有 `dueDate` 的任务清掉 `reminderTime`
+（没有日期就不会有通知，留着提醒时间只会让人误以为仍会被提醒）。
+
+**错误信息**（`BackupRestoreError`）都带 `recoverySuggestion`，明确告诉用户现有数据有没有被动过。
+
+---
+
 ## 模型关系图
 
 ```
 V1.0:
   PlanItem ──(独立)
   Note ──(独立)
-  UserSettings ──(独立，单例)
+  UserSettings ──(独立，singletonID 单例)
+  AIChatMessage ──(独立，按 providerRawValue 归属服务商)
 
 V1.1:
   PlanItem ──→ Collection? (多对一)
