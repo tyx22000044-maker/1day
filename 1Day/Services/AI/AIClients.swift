@@ -82,14 +82,14 @@ private struct ClaudeErrorBody: Decodable {
 extension ClaudeClient: AIVisionClient {
     var supportsVision: Bool { true }
 
-    func sendWithImage(_ request: AIVisionRequest) async throws -> AIClientResponse {
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
-            throw AIClientError.invalidResponse
-        }
-
-        let systemContent = request.messages.first(where: { $0.role == .system })?.content
-        let textContent = request.messages.last(where: { $0.role == .user })?.content ?? "请分析这张图片。"
-        let imageBlocks = request.images.map { image in
+    /// 多模态请求的 messages：整段对话都要带上，图片只挂在当前这条 user 消息上。
+    ///
+    /// 之前只取最后一条 user 文本重建单条消息，前面的用户条件、assistant 回复
+    /// 全部丢失，「按我刚才说的那个时间」这类指代在带图时必然失效。
+    static func visionMessages(for request: AIVisionRequest) -> [[String: Any]] {
+        let conversation = request.messages.filter { $0.role != .system }
+        let lastUserIndex = conversation.lastIndex { $0.role == .user }
+        let imageBlocks: [[String: Any]] = request.images.map { image in
             [
                 "type": "image",
                 "source": [
@@ -99,17 +99,34 @@ extension ClaudeClient: AIVisionClient {
                 ]
             ]
         }
-        let message: [String: Any] = [
-            "role": "user",
-            "content": imageBlocks + [["type": "text", "text": textContent]]
-        ]
+
+        return conversation.enumerated().map { index, message in
+            guard let lastUserIndex, index == lastUserIndex else {
+                return ["role": message.role.rawValue, "content": message.content]
+            }
+            return [
+                "role": message.role.rawValue,
+                "content": imageBlocks + [["type": "text", "text": message.content]]
+            ]
+        }
+    }
+
+    static func visionBody(for request: AIVisionRequest) -> [String: Any] {
         var body: [String: Any] = [
             "model": request.model,
             "max_tokens": 1024,
-            "messages": [message]
+            "messages": visionMessages(for: request)
         ]
-        if let systemContent, !systemContent.isEmpty {
+        if let systemContent = request.messages.first(where: { $0.role == .system })?.content,
+           !systemContent.isEmpty {
             body["system"] = systemContent
+        }
+        return body
+    }
+
+    func sendWithImage(_ request: AIVisionRequest) async throws -> AIClientResponse {
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+            throw AIClientError.invalidResponse
         }
 
         var urlRequest = URLRequest(url: url)
@@ -118,7 +135,7 @@ extension ClaudeClient: AIVisionClient {
         urlRequest.setValue(request.apiKey, forHTTPHeaderField: "x-api-key")
         urlRequest.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         urlRequest.timeoutInterval = request.timeoutInterval
-        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
+        urlRequest.httpBody = try JSONSerialization.data(withJSONObject: Self.visionBody(for: request))
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         guard let httpResponse = response as? HTTPURLResponse else {

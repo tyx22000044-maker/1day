@@ -84,6 +84,57 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-16 Claude 多模态请求保留多轮历史
+
+@Test func claudeVisionKeepsHistoryAndAttachesImagesToTheCurrentTurn() throws {
+    let messages: [AIClientMessage] = [
+        AIClientMessage(role: .system, content: "你是 1Day 助手"),
+        AIClientMessage(role: .user, content: "明天下午开会"),
+        AIClientMessage(role: .assistant, content: "已记为草稿"),
+        AIClientMessage(role: .user, content: "这张海报里的时间对吗"),
+    ]
+    let images = [
+        AIImageAttachment(data: Data([0x01]), mediaType: "image/jpeg"),
+        AIImageAttachment(data: Data([0x02]), mediaType: "image/png"),
+    ]
+    let request = try #require(AIVisionRequest(messages: messages, images: images, model: "claude-sonnet-4-6", apiKey: "k"))
+
+    // 之前只留最后一条 user，前面的条件和 assistant 回复全丢。
+    #expect(ClaudeClient.visionBody(for: request)["system"] as? String == "你是 1Day 助手")
+
+    let history = ClaudeClient.visionMessages(for: request)
+    #expect(history.count == 3)
+    #expect(history[0]["role"] as? String == "user")
+    #expect(history[0]["content"] as? String == "明天下午开会")
+    #expect(history[1]["role"] as? String == "assistant")
+    #expect(history[1]["content"] as? String == "已记为草稿")
+
+    let currentBlocks = try #require(history[2]["content"] as? [[String: Any]])
+    #expect(currentBlocks.count == 3)
+    #expect(currentBlocks[0]["type"] as? String == "image")
+    #expect(currentBlocks[0]["source"] != nil)
+    #expect(currentBlocks[1]["type"] as? String == "image")
+    #expect(currentBlocks.last?["text"] as? String == "这张海报里的时间对吗")
+}
+
+@Test func claudeVisionSystemPromptIsNotDuplicatedIntoMessages() throws {
+    let request = try #require(AIVisionRequest(
+        messages: [
+            AIClientMessage(role: .system, content: "规则"),
+            AIClientMessage(role: .user, content: "看这张图"),
+        ],
+        images: oneImage,
+        model: "m",
+        apiKey: "k"
+    ))
+
+    let history = ClaudeClient.visionMessages(for: request)
+    #expect(history.count == 1)
+    #expect(history[0]["role"] as? String == "user")
+    let blocks = try #require(history[0]["content"] as? [[String: Any]])
+    #expect(blocks.last?["text"] as? String == "看这张图")
+}
+
 // MARK: - F-15 压缩必须真的满足大小上限
 
 /// 随机噪点图：JPEG 压不动，能逼出「降尺寸 + 再降质量」这条真实路径。
