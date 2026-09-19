@@ -83,6 +83,26 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-14 图片请求的输入契约
+
+private let oneImage = [AIImageAttachment(data: Data([0xFF, 0xD8]), mediaType: "image/jpeg")]
+
+@Test func visionRequestRejectsEmptyImageListInsteadOfTrapping() {
+    let messages = [AIClientMessage(role: .user, content: "看看这个")]
+
+    // 旧实现暴露 `images[0]`，空数组一到就是运行时 trap。
+    #expect(AIVisionRequest(messages: messages, images: [], model: "m", apiKey: "k") == nil)
+    #expect(AIVisionRequest(messages: messages, images: oneImage, model: "m", apiKey: "k")?.images.count == 1)
+}
+
+@Test func visionRequestCapsImagesAtTheProviderLimit() {
+    let messages = [AIClientMessage(role: .user, content: "看看这些")]
+    let many = Array(repeating: oneImage[0], count: 9)
+
+    let request = AIVisionRequest(messages: messages, images: many, model: "m", apiKey: "k")
+    #expect(request?.images.count == AIVisionRequest.maximumImageCount)
+}
+
 // MARK: - F-13 通知失败必须让用户看见
 
 private struct StubAddFailure: Error, LocalizedError {

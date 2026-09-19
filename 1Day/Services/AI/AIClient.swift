@@ -68,35 +68,27 @@ struct AIImageAttachment {
 }
 
 struct AIVisionRequest {
+    /// 服务商一次请求允许携带的图片上限，超出部分按提交顺序截断。
+    static let maximumImageCount = 6
+
     let messages: [AIClientMessage]
     let images: [AIImageAttachment]
     let model: String
     let apiKey: String
     let timeoutInterval: TimeInterval
 
-    var image: AIImageAttachment { images[0] }
-
-    init(messages: [AIClientMessage],
-         image: AIImageAttachment,
-         model: String,
-         apiKey: String,
-         timeoutInterval: TimeInterval = 45) {
-        self.init(
-            messages: messages,
-            images: [image],
-            model: model,
-            apiKey: apiKey,
-            timeoutInterval: timeoutInterval
-        )
-    }
-
-    init(messages: [AIClientMessage],
-         images: [AIImageAttachment],
-         model: String,
-         apiKey: String,
-         timeoutInterval: TimeInterval = 45) {
+    /// 图片请求必须至少带一张图：空数组在以前会让学生在 `images[0]` 上越界崩溃，
+    /// 所以直接把「没有图」变成构造失败，调用方拿到可诊断的分支而不是崩溃。
+    init?(
+        messages: [AIClientMessage],
+        images: [AIImageAttachment],
+        model: String,
+        apiKey: String,
+        timeoutInterval: TimeInterval = 45
+    ) {
+        guard !images.isEmpty else { return nil }
         self.messages = messages
-        self.images = Array(images.prefix(6))
+        self.images = Array(images.prefix(Self.maximumImageCount))
         self.model = model
         self.apiKey = apiKey
         self.timeoutInterval = timeoutInterval

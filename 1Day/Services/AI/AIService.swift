@@ -324,7 +324,7 @@ struct ConfiguredAIService: AIService {
               !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AIClientError.missingAPIKey
         }
-        let images = imageDataList.prefix(6).compactMap { ImageService.compress($0) }.map {
+        let images = imageDataList.prefix(AIVisionRequest.maximumImageCount).compactMap { ImageService.compress($0) }.map {
             AIImageAttachment(data: $0, mediaType: "image/jpeg")
         }
         guard !images.isEmpty, let visionClient = try clientFactory.visionClient(for: provider) else {
@@ -334,7 +334,7 @@ struct ConfiguredAIService: AIService {
         let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "请逐张描述这些图片中与计划、任务、日程或笔记有关的信息。不要偷懒：多张图片或多个事项要逐项覆盖，不能只处理第一张或最明显的一项。不要自动创建数据，只返回可供用户确认的文字建议。"
             : text
-        let request = AIVisionRequest(
+        guard let request = AIVisionRequest(
             messages: AIPromptBuilder.makeMessages(
                 text: prompt,
                 history: history,
@@ -345,7 +345,9 @@ struct ConfiguredAIService: AIService {
             model: settings.selectedAIModel,
             apiKey: apiKey,
             timeoutInterval: 45
-        )
+        ) else {
+            throw AIClientError.providerError("图片压缩后没有可用图像，请重新选择或换一张图。")
+        }
 
         do {
             AppLogger.ai("发送图片消息 → \(provider.rawValue) 模型: \(settings.selectedAIModel)")
