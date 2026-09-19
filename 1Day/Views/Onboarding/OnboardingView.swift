@@ -159,7 +159,7 @@ struct OnboardingView: View {
                     } label: {
                         Image(systemName: symbol)
                             .font(.title2)
-                            .foregroundStyle(settings.avatarSymbolName == symbol ? Color.white : FamilyUI.accent)
+                            .foregroundStyle(settings.avatarSymbolName == symbol ? FamilyUI.onAccent : FamilyUI.accent)
                             .frame(height: 52)
                             .frame(maxWidth: .infinity)
                             .background(settings.avatarSymbolName == symbol ? FamilyUI.accent : FamilyUI.panelMutedBackground)
@@ -625,7 +625,7 @@ private struct OnboardingOptionButton: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(isSelected ? FamilyUI.accent : FamilyUI.panelMutedBackground)
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .foregroundStyle(isSelected ? FamilyUI.onAccent : Color.primary)
                 .overlay(
                     RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                         .stroke(isSelected ? FamilyUI.accent : FamilyUI.panelBorder, lineWidth: 1)

@@ -87,8 +87,8 @@ struct FamilyAddButtonLabel: View {
         Image(systemName: "plus")
             .font(FamilyTypography.actionIcon)
             .frame(width: 34, height: 34)
-            .background(Color.black)
-            .foregroundStyle(.white)
+            .background(FamilyUI.ink)
+            .foregroundStyle(FamilyUI.onAccent)
             .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
             .accessibilityLabel("新增")
     }

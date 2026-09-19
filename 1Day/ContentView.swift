@@ -306,7 +306,7 @@ struct DaySelectorView: View {
             .fill(FamilyUI.panelMutedBackground)
             .overlay(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius).stroke(FamilyUI.panelBorder, lineWidth: 1))
             .frame(width: 40, height: 40)
-            .overlay(Image(systemName: name).font(.body.weight(.semibold)).foregroundStyle(disabled ? Color(.systemGray3) : .primary))
+            .overlay(Image(systemName: name).font(.body.weight(.semibold)).foregroundStyle(disabled ? FamilyUI.subtleText : FamilyUI.ink))
     }
 }
 

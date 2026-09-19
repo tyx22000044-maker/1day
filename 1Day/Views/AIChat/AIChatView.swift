@@ -277,7 +277,7 @@ struct AIChatView: View {
                         .fontWeight(.semibold)
                         .frame(width: 44, height: 44)
                         .background(FamilyUI.panelMutedBackground)
-                        .foregroundStyle(canUseVision ? FamilyUI.accent : Color(.systemGray3))
+                        .foregroundStyle(canUseVision ? FamilyUI.accent : FamilyUI.subtleText)
                         .overlay(
                             RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
                                 .stroke(FamilyUI.panelBorder, lineWidth: 1)

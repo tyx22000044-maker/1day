@@ -6,7 +6,7 @@ enum AppBannerTone: Equatable {
     case success
 
     var foreground: Color {
-        .white
+        FamilyUI.onAccent
     }
 
     var background: Color {
@@ -46,7 +46,7 @@ struct AppErrorBanner: View {
             if isVisible {
                 HStack(alignment: .top, spacing: 12) {
                     RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
-                        .fill(Color.white.opacity(0.16))
+                        .fill(FamilyUI.onAccent.opacity(0.16))
                         .frame(width: FamilyUI.iconBoxSize, height: FamilyUI.iconBoxSize)
                         .overlay(
                             Image(systemName: tone.icon)
@@ -82,7 +82,7 @@ struct AppErrorBanner: View {
                 .background(tone.background)
                 .overlay(
                     RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius)
-                        .stroke(Color.black.opacity(0.18), lineWidth: 1)
+                        .stroke(FamilyUI.ink.opacity(0.18), lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: FamilyUI.controlCornerRadius))
                 .padding(.horizontal, AppSpacing.pageHorizontal)

@@ -572,10 +572,10 @@ private struct InAppMessageCard: View {
                         if !isRead {
                             Text("未读")
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(FamilyUI.accent)
+                                .foregroundStyle(FamilyUI.onAccent)
                                 .clipShape(RoundedRectangle(cornerRadius: FamilyUI.badgeCornerRadius))
                         }
 

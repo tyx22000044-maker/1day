@@ -43,7 +43,7 @@ struct AppEmptyStateView: View {
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
                         .background(FamilyUI.accent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(FamilyUI.onAccent)
                         .overlay(
                             Rectangle()
                                 .stroke(FamilyUI.accentDeep, lineWidth: 1)

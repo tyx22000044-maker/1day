@@ -42,7 +42,7 @@ struct UserAvatarView: View {
                     .overlay(
                         Text(initials)
                             .font(FamilyTypography.fixed(size * 0.35, .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(FamilyUI.paper)
                     )
             } else {
                 RoundedRectangle(cornerRadius: FamilyUI.panelCornerRadius)

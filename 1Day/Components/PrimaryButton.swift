@@ -15,8 +15,8 @@ struct PrimaryButton: View {
                 .tracking(0.4)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(isEnabled ? FamilyUI.accent : Color(.systemGray4))
-                .foregroundStyle(Color.white)
+                .background(isEnabled ? FamilyUI.accent : FamilyUI.panelMutedBackground)
+                .foregroundStyle(isEnabled ? FamilyUI.onAccent : FamilyUI.subtleText)
                 .overlay(
                     Rectangle()
                         .stroke(isEnabled ? FamilyUI.accentDeep : FamilyUI.panelBorder, lineWidth: 1)

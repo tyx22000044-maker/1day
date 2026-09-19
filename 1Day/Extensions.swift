@@ -154,7 +154,7 @@ struct AppSwitchStyle: ToggleStyle {
                     .frame(width: 50, height: 30)
                     .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                         RoundedRectangle(cornerRadius: 1)
-                            .fill(configuration.isOn ? Color.white : Color.secondary.opacity(0.55))
+                            .fill(configuration.isOn ? FamilyUI.onAccent : FamilyUI.subtleText)
                             .frame(width: 20, height: 20)
                             .padding(5)
                     }
@@ -259,6 +259,10 @@ enum FamilyUI {
             ? UIColor(red: 0.980, green: 0.980, blue: 0.969, alpha: 1)   // #FAFAF7 — inverted solid band
             : UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 1)   // #0B0B0A — primary ink
     })
+    /// 压在 accent / danger 实底上的前景色。两种外观模式下都要保持对比，
+    /// 所以它跟着 ink/paper 走会失效 —— 深色下 ink 是近白、paper 是近黑。
+    static let onAccent = Color(red: 0.980, green: 0.980, blue: 0.969)
+
     static let paper = Color(UIColor { t in
         t.userInterfaceStyle == .dark
             ? UIColor(red: 0.043, green: 0.043, blue: 0.039, alpha: 1)   // text on inverted ink band

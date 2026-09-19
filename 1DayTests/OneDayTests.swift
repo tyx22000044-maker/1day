@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 import Testing
 import UIKit
 import UserNotifications
@@ -82,6 +83,45 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(first.id == second.id)
     #expect(second.id == third.id)
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
+}
+
+// MARK: - F-27 token 对比度
+
+private func resolvedRGB(_ color: Color, style: UIUserInterfaceStyle) -> (r: CGFloat, g: CGFloat, b: CGFloat)? {
+    let traits = UITraitCollection(userInterfaceStyle: style)
+    let resolved = UIColor(color).resolvedColor(with: traits)
+    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+    guard resolved.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+    return (r, g, b)
+}
+
+private func contrastRatio(_ a: (r: CGFloat, g: CGFloat, b: CGFloat), _ b: (r: CGFloat, g: CGFloat, b: CGFloat)) -> CGFloat {
+    func luminance(_ c: (r: CGFloat, g: CGFloat, b: CGFloat)) -> CGFloat {
+        func channel(_ v: CGFloat) -> CGFloat {
+            v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+    }
+    let light = max(luminance(a), luminance(b))
+    let dark = min(luminance(a), luminance(b))
+    return (light + 0.05) / (dark + 0.05)
+}
+
+@Test func inkAndPaperStayInvertedAcrossAppearanceModes() throws {
+    for style in [UIUserInterfaceStyle.light, .dark] {
+        let ink = try #require(resolvedRGB(FamilyUI.ink, style: style))
+        let paper = try #require(resolvedRGB(FamilyUI.paper, style: style))
+        // 深色下如果 ink/paper 不再互为反色，头像首字母和实底带就会「白字压白底」。
+        #expect(contrastRatio(ink, paper) > 7)
+    }
+}
+
+@Test func onAccentIsReadableOnAccentAndDangerFills() throws {
+    let onAccent = try #require(resolvedRGB(FamilyUI.onAccent, style: .dark))
+    let accent = try #require(resolvedRGB(FamilyUI.accent, style: .dark))
+    let danger = try #require(resolvedRGB(FamilyUI.danger, style: .light))
+    #expect(contrastRatio(onAccent, accent) > 4.5)
+    #expect(contrastRatio(onAccent, danger) > 4.5)
 }
 
 // MARK: - F-26 行级无障碍语义
