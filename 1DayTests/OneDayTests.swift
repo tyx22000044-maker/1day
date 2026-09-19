@@ -84,6 +84,119 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-17 备份版本闸门与字段预检
+
+private func rawBackupItemJSON(
+    id: String = UUID().uuidString,
+    title: String = "任务",
+    status: String = "pending",
+    priority: String = "none",
+    dueDate: String? = nil,
+    reminderTime: String? = nil,
+    completedAt: String? = nil
+) -> String {
+    var fields = [
+        "\"id\":\"\(id)\"",
+        "\"title\":\"\(title)\"",
+        "\"notes\":\"\"",
+        "\"statusRawValue\":\"\(status)\"",
+        "\"priorityRawValue\":\"\(priority)\"",
+        "\"createdAt\":\"2026-01-01T00:00:00Z\"",
+        "\"updatedAt\":\"2026-01-01T00:00:00Z\""
+    ]
+    if let dueDate { fields.append("\"dueDate\":\"\(dueDate)\"") }
+    if let reminderTime { fields.append("\"reminderTime\":\"\(reminderTime)\"") }
+    if let completedAt { fields.append("\"completedAt\":\"\(completedAt)\"") }
+    return "{\(fields.joined(separator: ","))}"
+}
+
+private func envelopeJSON(planItems: [String], settings: String? = nil, schemaVersion: Int = 2) -> String {
+    var document = """
+    {"schemaVersion":\(schemaVersion),"exportedAt":"2026-01-01T00:00:00Z",\
+    "planItems":[\(planItems.joined(separator: ","))],"notes":[]
+    """
+    if let settings { document += ",\"settings\":\(settings)" }
+    document += "}"
+    return document
+}
+
+private func restoreError(_ json: String, into context: ModelContext) -> BackupRestoreError? {
+    guard let url = try? writeBackupJSON(json) else { return .duplicateRecordID("url-failed") }
+    do {
+        try restore(url, into: context)
+        return nil
+    } catch let error as BackupRestoreError {
+        return error
+    } catch {
+        return nil
+    }
+}
+
+@Test func futureSchemaVersionIsRefusedWithoutTouchingExistingData() throws {
+    let (_, context) = try seedRestoreContext()
+
+    let error = restoreError(envelopeJSON(planItems: [], schemaVersion: 99), into: context)
+
+    #expect(error == .unsupportedSchemaVersion(99))
+    #expect(try context.fetch(FetchDescriptor<PlanItem>()).map(\.title) == ["原有任务"])
+}
+
+@Test func unknownEnumRawValueIsRefusedInsteadOfSilentlyCoerced() throws {
+    let (_, context) = try seedRestoreContext()
+
+    // 旧实现把读不懂的 status 变成 pending，用户会看到一条状态被偷偷改写的任务。
+    let error = restoreError(
+        envelopeJSON(planItems: [rawBackupItemJSON(title: "奇怪的", status: "archived")]),
+        into: context
+    )
+
+    #expect(error == .invalidField(field: "status", value: "archived"))
+    #expect(try context.fetch(FetchDescriptor<PlanItem>()).map(\.title) == ["原有任务"])
+}
+
+@Test func outOfRangeReminderHourIsRefused() throws {
+    let (_, context) = try seedRestoreContext()
+    let settings = """
+    {"id":"\(UUID().uuidString)","dataSchemaVersion":1,"nickname":"","avatarSymbolName":"person.crop.circle",\
+    "languageRawValue":"system","appearanceRawValue":"system","defaultReminderHour":25,"defaultReminderMinute":0,\
+    "selectedAIProviderRawValue":"claude","selectedAIModel":"claude-sonnet","aiProcessingModeRawValue":"ruleFirst",\
+    "isAIConfigured":false,"hasCompletedOnboarding":true,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}
+    """
+
+    let error = restoreError(envelopeJSON(planItems: [], settings: settings), into: context)
+
+    #expect(error == .invalidField(field: "defaultReminderHour", value: "25"))
+    #expect(try context.fetch(FetchDescriptor<Note>()).count == 1)
+}
+
+@Test func completedStatusWithoutTimestampIsRepairedOnRestore() throws {
+    let (_, context) = try seedRestoreContext()
+    let item = rawBackupItemJSON(
+        title: "忘了记完成时间",
+        status: "completed",
+        dueDate: "2026-01-01T00:00:00Z"
+    )
+
+    try restore(try writeBackupJSON(envelopeJSON(planItems: [item])), into: context)
+
+    let restored = try context.fetch(FetchDescriptor<PlanItem>()).first
+    #expect(restored?.isCompleted == true)
+    // 完成态必须配一个完成时间，否则「今天完成了几件」会漏掉它。
+    #expect(restored?.completedAt != nil)
+}
+
+@Test func reminderWithoutDueDateIsDroppedOnRestore() throws {
+    let (_, context) = try seedRestoreContext()
+    let item = rawBackupItemJSON(title: "没有日期却带提醒", reminderTime: "2026-07-01T09:00:00Z")
+
+    try restore(try writeBackupJSON(envelopeJSON(planItems: [item])), into: context)
+
+    let restored = try context.fetch(FetchDescriptor<PlanItem>()).first
+    // 没有日期的任务不会有本地通知，留着提醒时间只是骗人。
+    #expect(restored?.isUnscheduled == true)
+    #expect(restored?.reminderTime == nil)
+}
+
 // MARK: - F-16 Claude 多模态请求保留多轮历史
 
 @Test func claudeVisionKeepsHistoryAndAttachesImagesToTheCurrentTurn() throws {

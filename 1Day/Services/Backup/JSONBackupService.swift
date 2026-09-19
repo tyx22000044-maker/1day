@@ -32,16 +32,29 @@ enum SettingsDataCoordinator {
 
 enum BackupRestoreError: LocalizedError, Equatable {
     case duplicateRecordID(String)
+    case unsupportedSchemaVersion(Int)
+    case invalidField(field: String, value: String)
 
     var errorDescription: String? {
         switch self {
         case .duplicateRecordID(let id):
             return "备份文件中有重复的记录（\(id)），已停止导入。"
+        case .unsupportedSchemaVersion(let version):
+            return "这份备份的格式版本是 \(version)，当前 1Day 只支持到 \(BackupEnvelope.currentSchemaVersion)，请升级 App 后再导入。"
+        case .invalidField(let field, let value):
+            return "备份里有读不懂的字段：\(field) = \(value)，已停止导入。"
         }
     }
 
     var recoverySuggestion: String? {
-        "你的现有数据没有被改动。请重新导出一份备份，或删掉重复的那条记录后再试。"
+        switch self {
+        case .duplicateRecordID:
+            return "你的现有数据没有被改动。请重新导出一份备份，或删掉重复的那条记录后再试。"
+        case .unsupportedSchemaVersion:
+            return "你的现有数据没有被改动。"
+        case .invalidField:
+            return "你的现有数据没有被改动。这份文件可能已被编辑过或来自其他版本的 App。"
+        }
     }
 }
 
@@ -135,6 +148,11 @@ enum JSONBackupService {
         decoder.dateDecodingStrategy = .iso8601
         let envelope = try decoder.decode(BackupEnvelope.self, from: data)
 
+        // 版本闸门：只接受「比当前格式更旧或相同」的备份，未来的格式不能被猜解。
+        guard envelope.schemaVersion >= 1, envelope.schemaVersion <= BackupEnvelope.currentSchemaVersion else {
+            throw BackupRestoreError.unsupportedSchemaVersion(envelope.schemaVersion)
+        }
+
         var seenIDs = Set<UUID>()
         var planItems: [PlanItem] = []
         planItems.reserveCapacity(envelope.planItems.count)
@@ -142,6 +160,7 @@ enum JSONBackupService {
             guard seenIDs.insert(backup.id).inserted else {
                 throw BackupRestoreError.duplicateRecordID(backup.id.uuidString)
             }
+            try backup.validate()
             planItems.append(backup.makePlanItem())
         }
 
@@ -153,6 +172,10 @@ enum JSONBackupService {
                 throw BackupRestoreError.duplicateRecordID(backup.id.uuidString)
             }
             notes.append(backup.makeNote())
+        }
+
+        if let settings = envelope.settings {
+            try settings.validate()
         }
 
         return RestorePayload(
@@ -229,6 +252,20 @@ private struct PlanItemBackup: Codable {
         completedAt = item.completedAt
     }
 
+    /// 导入前校验。未知枚举一律拒绝而不是悄悄变成 pending/none ——
+    /// 静默降级会把损坏的数据伪装成正常数据。
+    func validate() throws {
+        guard ItemStatus(rawValue: statusRawValue) != nil else {
+            throw BackupRestoreError.invalidField(field: "status", value: statusRawValue)
+        }
+        guard Priority(rawValue: priorityRawValue) != nil else {
+            throw BackupRestoreError.invalidField(field: "priority", value: priorityRawValue)
+        }
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw BackupRestoreError.invalidField(field: "title", value: title)
+        }
+    }
+
     func makePlanItem() -> PlanItem {
         let item = PlanItem(
             title: title,
@@ -243,7 +280,12 @@ private struct PlanItemBackup: Codable {
         item.priorityRawValue = priorityRawValue
         item.createdAt = createdAt
         item.updatedAt = updatedAt
-        item.completedAt = completedAt
+        // rawValue 是直写的，绕过了 setter 里维护 completedAt 的逻辑，这里补齐自洽。
+        item.completedAt = item.status == .completed ? (completedAt ?? updatedAt) : nil
+        // 没有日期的任务不会有本地通知，留着提醒时间只会让人以为仍会被提醒。
+        if item.dueDate == nil {
+            item.reminderTime = nil
+        }
         return item
     }
 }
@@ -311,6 +353,28 @@ private struct UserSettingsBackup: Codable {
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         createdAt = settings.createdAt
         updatedAt = settings.updatedAt
+    }
+
+    /// 设置里的枚举和时间分量都要能读得懂。
+    func validate() throws {
+        guard AppLanguage(rawValue: languageRawValue) != nil else {
+            throw BackupRestoreError.invalidField(field: "language", value: languageRawValue)
+        }
+        guard AppearanceMode(rawValue: appearanceRawValue) != nil else {
+            throw BackupRestoreError.invalidField(field: "appearance", value: appearanceRawValue)
+        }
+        guard AIProvider(rawValue: selectedAIProviderRawValue) != nil else {
+            throw BackupRestoreError.invalidField(field: "aiProvider", value: selectedAIProviderRawValue)
+        }
+        guard AIProcessingMode(rawValue: aiProcessingModeRawValue) != nil else {
+            throw BackupRestoreError.invalidField(field: "aiProcessingMode", value: aiProcessingModeRawValue)
+        }
+        guard (0...23).contains(defaultReminderHour) else {
+            throw BackupRestoreError.invalidField(field: "defaultReminderHour", value: String(defaultReminderHour))
+        }
+        guard (0...59).contains(defaultReminderMinute) else {
+            throw BackupRestoreError.invalidField(field: "defaultReminderMinute", value: String(defaultReminderMinute))
+        }
     }
 
     func apply(to settings: UserSettings) {
