@@ -430,11 +430,20 @@ final class AIChatViewModel {
     var failedRequestImages: [Data] = []
     var failedRequestHistory: [AIChatHistoryItem] = []
 
+    /// 进行中的网络请求句柄。「停止」必须真的取消它，而不只是收起 loading。
+    private var requestTask: Task<Void, Never>?
     private var loadingTimer: Timer?
     private let configService: AIConfigurationService
+    private let serviceFactory: (UserSettings) -> AIService
 
-    init(configService: AIConfigurationService = LocalAIConfigurationService()) {
+    init(
+        configService: AIConfigurationService = LocalAIConfigurationService(),
+        serviceFactory: ((UserSettings) -> AIService)? = nil
+    ) {
         self.configService = configService
+        self.serviceFactory = serviceFactory ?? { settings in
+            ConfiguredAIService(settings: settings, configurationService: configService)
+        }
     }
 
     // MARK: - Sending
@@ -490,10 +499,10 @@ final class AIChatViewModel {
 
         // AI 请求路径
         startLoading(images: !imageDataList.isEmpty)
-        let aiService = ConfiguredAIService(settings: s, configurationService: configService)
+        let aiService = serviceFactory(s)
         let ctx = buildContext(planItems: planItems, selectedDate: selectedDate)
 
-        Task {
+        requestTask = Task {
             do {
                 let response: String
                 if imageDataList.isEmpty {
@@ -501,7 +510,8 @@ final class AIChatViewModel {
                 } else {
                     response = try await aiService.sendMessageWithImages(text, imageDataList: imageDataList, history: history, context: ctx)
                 }
-                stopLoading()
+                try Task.checkCancellation()
+                endLoading()
                 // Show AI response as a plain message first
                 modelContext.insert(AIChatMessage(
                     role: "assistant",
@@ -515,7 +525,13 @@ final class AIChatViewModel {
                 }
                 HapticEngine.success()
             } catch {
-                stopLoading()
+                let wasCancelled = error is CancellationError || Task.isCancelled
+                endLoading()
+                // 用户主动停止：不写消息、不报失败，静默收尾。
+                if wasCancelled {
+                    AppLogger.ai("请求已被用户取消")
+                    return
+                }
                 let errMsg = (error as? AIClientError)?.errorDescription ?? error.localizedDescription
                 failedRequestText = text
                 failedRequestImages = imageDataList
@@ -541,9 +557,9 @@ final class AIChatViewModel {
         failedRequestHistory = []
         startLoading(images: !images.isEmpty)
 
-        Task {
+        requestTask = Task {
             do {
-                let service = ConfiguredAIService(settings: settings, configurationService: configService)
+                let service = serviceFactory(settings)
                 let ctx = buildContext(planItems: planItems, selectedDate: selectedDate)
                 let response: String
                 if images.isEmpty {
@@ -551,11 +567,17 @@ final class AIChatViewModel {
                 } else {
                     response = try await service.sendMessageWithImages(text, imageDataList: images, history: history, context: ctx)
                 }
-                stopLoading()
+                try Task.checkCancellation()
+                endLoading()
                 modelContext.insert(AIChatMessage(role: "assistant", content: response, provider: provider))
                 HapticEngine.success()
             } catch {
-                stopLoading()
+                let wasCancelled = error is CancellationError || Task.isCancelled
+                endLoading()
+                if wasCancelled {
+                    AppLogger.ai("重试已被用户取消")
+                    return
+                }
                 failedRequestText = text
                 failedRequestImages = images
                 failedRequestHistory = history
@@ -616,11 +638,20 @@ final class AIChatViewModel {
         }
     }
 
+    /// 「停止」= 取消网络请求 + 收起 loading。
+    /// URLSession 的 `data(for:)` 会响应协作取消，所以取消 Task 就真的断开了连接。
     func stopLoading() {
+        requestTask?.cancel()
+        endLoading()
+    }
+
+    /// 只收起 loading，不做取消：请求自己的收尾路径用它，避免任务自我取消。
+    private func endLoading() {
         isLoading = false
         isLoadingImages = false
         loadingTimer?.invalidate()
         loadingTimer = nil
+        requestTask = nil
     }
 
     // MARK: - Context

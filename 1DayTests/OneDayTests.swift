@@ -82,6 +82,105 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-07 「停止」必须真的取消网络请求
+
+private final class SlowAIService: AIService, @unchecked Sendable {
+    private(set) var sawCancellation = false
+    private(set) var callCount = 0
+
+    func sendMessage(_ text: String, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
+        callCount += 1
+        do {
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+            return "晚到的回复"
+        } catch {
+            sawCancellation = true
+            throw CancellationError()
+        }
+    }
+
+    func sendMessageWithImage(_ text: String, imageData: Data, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
+        try await sendMessage(text, history: history, context: context)
+    }
+
+    func sendMessageWithImages(_ text: String, imageDataList: [Data], history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
+        try await sendMessage(text, history: history, context: context)
+    }
+
+    func parseStructuredIntent(from text: String) async throws -> AIChatIntentResult? { nil }
+    func parseStructuredIntentWithImage(_ text: String, imageData: Data) async throws -> AIChatIntentResult? { nil }
+    func parseStructuredIntentWithImages(_ text: String, imageDataList: [Data]) async throws -> AIChatIntentResult? { nil }
+}
+
+@MainActor
+private func configuredSettings(in context: ModelContext) throws -> UserSettings {
+    let settings = try SettingsBootstrap.ensureSettings(in: context)
+    settings.isAIConfigured = true
+    try context.save()
+    return settings
+}
+
+@Test @MainActor func stoppingARequestCancelsTaskAndSuppressesLateResult() async throws {
+    GlobalBannerCenter.shared.dismiss()
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+
+    let service = SlowAIService()
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+    viewModel.inputText = "明天提交周报"
+
+    viewModel.send(
+        imageDataList: [],
+        messages: [],
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    #expect(viewModel.isLoading)
+
+    viewModel.stopLoading()
+    #expect(viewModel.isLoading == false)
+
+    // 给被取消的任务一点时间走完收尾：晚到的结果不能写进会话。
+    try await Task.sleep(nanoseconds: 300_000_000)
+
+    #expect(service.callCount == 1)
+    #expect(service.sawCancellation)
+
+    let messages = try context.fetch(FetchDescriptor<AIChatMessage>())
+    #expect(messages.contains { $0.role == "user" })
+    #expect(!messages.contains { $0.role == "assistant" })
+    // 用户主动取消不是失败，不该弹「AI 请求失败」。
+    #expect(GlobalBannerCenter.shared.currentBanner == nil)
+}
+
+@Test @MainActor func cancelledRequestDoesNotOpenTaskConfirmation() async throws {
+    GlobalBannerCenter.shared.dismiss()
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+    let service = SlowAIService()
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+
+    // 「创建任务」意图 + 立即停止：不能因为取消而弹出确认卡。
+    viewModel.inputText = "明天提交周报"
+    viewModel.send(
+        imageDataList: [],
+        messages: [],
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    viewModel.stopLoading()
+    try await Task.sleep(nanoseconds: 300_000_000)
+
+    #expect(viewModel.isShowingConfirmation == false)
+    #expect(viewModel.pendingTask == nil)
+}
+
 // MARK: - F-06 引导页跳过不能丢掉已输入的 key
 
 @Test func onboardingSkipCommitsTypedAPIKey() throws {
