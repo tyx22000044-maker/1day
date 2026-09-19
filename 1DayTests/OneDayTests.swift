@@ -1,5 +1,6 @@
+import Foundation
 import Testing
-@testable import _1Day
+@testable import OneDay
 
 @Test func planItemCreation() async throws {
     let item = PlanItem(title: "Test Task", dueDate: Date())
