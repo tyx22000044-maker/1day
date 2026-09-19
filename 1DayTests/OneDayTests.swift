@@ -85,6 +85,43 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-28 语音输入相位机
+
+@Test func tappingWhileStartingCancelsInsteadOfStackingASecondSession() {
+    // 旧实现只看 isRecording，异步启动期间再点一次会叠出第二个录音任务。
+    var phase = SpeechPhase.idle
+    phase = SpeechPhaseMachine.next(phase, on: .tapped)
+    #expect(phase == .starting)
+    phase = SpeechPhaseMachine.next(phase, on: .tapped)
+    #expect(phase == .idle)
+    // 取消后引擎回调才到达，不能把已经放弃的会话又拉回 recording。
+    phase = SpeechPhaseMachine.next(phase, on: .engineStarted)
+    #expect(phase == .idle)
+}
+
+@Test func fullRecordingCycleWalksTheExpectedPhases() {
+    var phase = SpeechPhase.idle
+    for event: SpeechEvent in [.tapped, .engineStarted, .tapped, .engineStopped] {
+        phase = SpeechPhaseMachine.next(phase, on: event)
+    }
+    #expect(phase == .idle)
+    // 只有 recording 这一相位对外显示「正在录音」。
+    #expect(SpeechPhase.starting.showsRecordingUI == false)
+    #expect(SpeechPhase.recording.showsRecordingUI)
+    #expect(SpeechPhase.stopping.showsRecordingUI == false)
+}
+
+@Test func interruptionAndLateCallbacksNeverStrandTheStateMachine() {
+    #expect(SpeechPhaseMachine.next(.recording, on: .interrupted) == .stopping)
+    #expect(SpeechPhaseMachine.next(.stopping, on: .engineStopped) == .idle)
+    // stopping 期间再点一下应当被忽略，而不是跳回 starting 叠两个会话。
+    #expect(SpeechPhaseMachine.next(.stopping, on: .tapped) == .stopping)
+    // 权限被拒 / 引擎起不来都要回到 idle，UI 不会卡在录音态。
+    #expect(SpeechPhaseMachine.next(.starting, on: .startRejected) == .idle)
+    #expect(SpeechPhaseMachine.next(.idle, on: .engineStopped) == .idle)
+    #expect(SpeechPhaseMachine.next(.idle, on: .interrupted) == .idle)
+}
+
 // MARK: - F-27 token 对比度
 
 private func resolvedRGB(_ color: Color, style: UIUserInterfaceStyle) -> (r: CGFloat, g: CGFloat, b: CGFloat)? {
