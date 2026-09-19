@@ -82,6 +82,52 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-04 备份必须完整覆盖反馈偏好
+
+@Test func feedbackPreferencesSurviveBackupRoundTrip() throws {
+    let sourceContext = ModelContext(try makeInMemoryContainer())
+    let sourceSettings = try SettingsBootstrap.ensureSettings(in: sourceContext)
+    sourceSettings.isHapticsEnabled = false
+    sourceSettings.isSoundEffectsEnabled = false
+    try sourceContext.save()
+
+    let url = try JSONBackupService.exportBackup(planItems: [], notes: [], settings: sourceSettings)
+
+    // 恢复侧当作另一台设备：出厂默认两个开关都开着。
+    let targetContext = ModelContext(try makeInMemoryContainer())
+    let targetSettings = try SettingsBootstrap.ensureSettings(in: targetContext)
+    #expect(targetSettings.isHapticsEnabled)
+    #expect(targetSettings.isSoundEffectsEnabled)
+
+    try restore(url, into: targetContext)
+
+    #expect(targetSettings.isHapticsEnabled == false)
+    #expect(targetSettings.isSoundEffectsEnabled == false)
+}
+
+@Test func legacyBackupWithoutFeedbackFieldsKeepsCurrentPreferences() throws {
+    let targetContext = ModelContext(try makeInMemoryContainer())
+    let targetSettings = try SettingsBootstrap.ensureSettings(in: targetContext)
+    targetSettings.isHapticsEnabled = false
+    try targetContext.save()
+
+    // v1 备份：settings 里没有触觉/声音两个键。
+    let legacy = """
+    {"schemaVersion":1,"exportedAt":"2026-01-01T00:00:00Z","planItems":[],"notes":[],\
+    "settings":{"id":"\(UUID().uuidString)","dataSchemaVersion":1,"nickname":"小陈",\
+    "avatarSymbolName":"person.crop.circle","languageRawValue":"system","appearanceRawValue":"system",\
+    "defaultReminderHour":9,"defaultReminderMinute":0,"selectedAIProviderRawValue":"claude",\
+    "selectedAIModel":"claude-sonnet","aiProcessingModeRawValue":"ruleFirst","isAIConfigured":false,\
+    "hasCompletedOnboarding":true,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}}
+    """
+    try restore(try writeBackupJSON(legacy), into: targetContext)
+
+    // 缺字段不能把用户已经关掉的触觉静默改回去，其余字段仍要照常恢复。
+    #expect(targetSettings.isHapticsEnabled == false)
+    #expect(targetSettings.nickname == "小陈")
+    #expect(targetSettings.hasCompletedOnboarding)
+}
+
 // MARK: - F-03 备份恢复必须是可回滚的单一事务
 
 private func writeBackupJSON(_ json: String) throws -> URL {

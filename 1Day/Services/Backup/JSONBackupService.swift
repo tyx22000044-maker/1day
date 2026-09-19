@@ -191,7 +191,13 @@ enum JSONBackupService {
 }
 
 private struct BackupEnvelope: Codable {
-    var schemaVersion = 1
+    /// 备份格式版本。
+    ///
+    /// - v1：没有 `isHapticsEnabled` / `isSoundEffectsEnabled`。
+    /// - v2：加入触觉与声音偏好，恢复时缺字段的旧备份保持目标设备当前值。
+    static let currentSchemaVersion = 2
+
+    var schemaVersion = BackupEnvelope.currentSchemaVersion
     var exportedAt: Date
     var planItems: [PlanItemBackup]
     var notes: [NoteBackup]
@@ -280,6 +286,8 @@ private struct UserSettingsBackup: Codable {
     var selectedAIModel: String
     var aiProcessingModeRawValue: String
     var isAIConfigured: Bool
+    var isHapticsEnabled: Bool?
+    var isSoundEffectsEnabled: Bool?
     var hasCompletedOnboarding: Bool
     var createdAt: Date
     var updatedAt: Date
@@ -298,6 +306,8 @@ private struct UserSettingsBackup: Codable {
         selectedAIModel = settings.selectedAIModel
         aiProcessingModeRawValue = settings.aiProcessingModeRawValue
         isAIConfigured = settings.isAIConfigured
+        isHapticsEnabled = settings.isHapticsEnabled
+        isSoundEffectsEnabled = settings.isSoundEffectsEnabled
         hasCompletedOnboarding = settings.hasCompletedOnboarding
         createdAt = settings.createdAt
         updatedAt = settings.updatedAt
@@ -316,6 +326,13 @@ private struct UserSettingsBackup: Codable {
         settings.selectedAIModel = selectedAIModel
         settings.aiProcessingModeRawValue = aiProcessingModeRawValue
         settings.isAIConfigured = isAIConfigured
+        // v1 备份没有这两个字段；缺省时保持目标设备当前偏好，不静默改回默认值。
+        if let isHapticsEnabled {
+            settings.isHapticsEnabled = isHapticsEnabled
+        }
+        if let isSoundEffectsEnabled {
+            settings.isSoundEffectsEnabled = isSoundEffectsEnabled
+        }
         settings.hasCompletedOnboarding = hasCompletedOnboarding
         settings.createdAt = createdAt
         settings.updatedAt = updatedAt
