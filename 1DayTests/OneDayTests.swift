@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import UIKit
 import UserNotifications
 @testable import OneDay
 
@@ -81,6 +82,72 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(first.id == second.id)
     #expect(second.id == third.id)
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
+}
+
+// MARK: - F-15 压缩必须真的满足大小上限
+
+/// 随机噪点图：JPEG 压不动，能逼出「降尺寸 + 再降质量」这条真实路径。
+private func noisyJPEG(side: CGFloat) -> Data {
+    let size = CGSize(width: side, height: side)
+    // scale = 1，否则测试图会按屏幕倍数画成 3 倍像素，测出来的字节数没有意义。
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    let renderer = UIGraphicsImageRenderer(size: size, format: format)
+    let image = renderer.image { context in
+        context.cgContext.setFillColor(UIColor.white.cgColor)
+        context.cgContext.fill(CGRect(origin: .zero, size: size))
+        for _ in 0..<12_000 {
+            let color = UIColor(
+                red: .random(in: 0...1),
+                green: .random(in: 0...1),
+                blue: .random(in: 0...1),
+                alpha: 1
+            )
+            context.cgContext.setFillColor(color.cgColor)
+            context.cgContext.fill(CGRect(
+                x: CGFloat(Int.random(in: 0..<Int(side))),
+                y: CGFloat(Int.random(in: 0..<Int(side))),
+                width: 7,
+                height: 7
+            ))
+        }
+    }
+    return image.jpegData(compressionQuality: 0.98)!
+}
+
+@Test func compressedImageRespectsTheByteLimit() throws {
+    let original = noisyJPEG(side: 2_000)
+    let limit = 200_000
+    // 前提：这张图本身确实超限，否则「压下去了」没有意义。
+    #expect(original.count > limit)
+
+    let compressed = try ImageService.compressedData(original, maxBytes: limit)
+
+    #expect(compressed.count <= limit)
+    #expect(compressed.count < original.count)
+}
+
+@Test func impossibleByteLimitFailsInsteadOfReturningOversizedData() throws {
+    let original = noisyJPEG(side: 900)
+
+    #expect(throws: (any Error).self) {
+        _ = try ImageService.compressedData(original, maxBytes: 200)
+    }
+    // 旧实现在缩到 1600 之后只压一次就不再检查，超限数据会被当成成功返回。
+    #expect(ImageService.compress(original, maxBytes: 200) == nil)
+}
+
+@Test func unreadableImageDataIsRejected() {
+    #expect(throws: (any Error).self) {
+        _ = try ImageService.compressedData(Data([0x00, 0x01, 0x02, 0x03]))
+    }
+    #expect(ImageService.compress(Data("这不是一张图片".utf8)) == nil)
+}
+
+@Test func smallImageStillFitsTheDefaultBudget() throws {
+    let tiny = noisyJPEG(side: 48)
+    let compressed = try ImageService.compressedData(tiny, maxBytes: ImageService.defaultMaxBytes)
+    #expect(compressed.count <= ImageService.defaultMaxBytes)
 }
 
 // MARK: - F-14 图片请求的输入契约

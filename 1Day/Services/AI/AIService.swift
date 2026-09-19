@@ -324,10 +324,18 @@ struct ConfiguredAIService: AIService {
               !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AIClientError.missingAPIKey
         }
-        let images = imageDataList.prefix(AIVisionRequest.maximumImageCount).compactMap { ImageService.compress($0) }.map {
-            AIImageAttachment(data: $0, mediaType: "image/jpeg")
+        let images: [AIImageAttachment]
+        do {
+            images = try imageDataList.prefix(AIVisionRequest.maximumImageCount).map { raw in
+                AIImageAttachment(data: try ImageService.compressedData(raw), mediaType: "image/jpeg")
+            }
+        } catch let error as ImageCompressionError {
+            // 压不进上限就不发：过去会把超限的原图当压缩结果发出去，
+            // 用户只会看到一句泛化的「网络请求失败」。
+            AppLogger.aiError("图片压缩失败: \(error.localizedDescription)")
+            throw AIClientError.providerError(error.errorDescription ?? "图片处理失败")
         }
-        guard !images.isEmpty, let visionClient = try clientFactory.visionClient(for: provider) else {
+        guard let visionClient = try clientFactory.visionClient(for: provider) else {
             throw AIClientError.providerError("当前服务商暂不支持图片输入，请切换到支持视觉输入的模型。")
         }
 

@@ -777,9 +777,17 @@ private struct ProfileSettingsView: View {
             }
             .onChange(of: avatarItem) { _, item in
                 Task {
-                    if let data = try? await item?.loadTransferable(type: Data.self) {
-                        avatarData = ImageService.compress(data) ?? data
+                    guard let data = try? await item?.loadTransferable(type: Data.self) else { return }
+                    // 头像会整块存进 SwiftData，压不下去就不要塞进去。
+                    guard let compressed = ImageService.compress(data, maxBytes: 512_000) else {
+                        GlobalBannerCenter.shared.show(
+                            title: "这张照片做头像太大",
+                            message: "压缩后仍然超过上限，换一张清晰的近照试试。",
+                            tone: .warning
+                        )
+                        return
                     }
+                    avatarData = compressed
                 }
             }
         }

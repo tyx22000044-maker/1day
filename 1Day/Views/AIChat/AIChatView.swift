@@ -153,7 +153,7 @@ struct AIChatView: View {
             .photosPicker(
                 isPresented: $isShowingPhotosPicker,
                 selection: $selectedPhotoItems,
-                maxSelectionCount: max(1, 6 - selectedImageDataList.count),
+                maxSelectionCount: max(1, AIVisionRequest.maximumImageCount - selectedImageDataList.count),
                 matching: .images
             )
             .onChange(of: selectedPhotoItems) { _, items in
@@ -368,7 +368,7 @@ struct AIChatView: View {
                     }
                 }
 
-                Text("已附加 \(selectedImageDataList.count)/6")
+                Text("已附加 \(selectedImageDataList.count)/\(AIVisionRequest.maximumImageCount)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -410,14 +410,23 @@ struct AIChatView: View {
     }
 
     private func appendImageData(_ data: Data) {
-        guard selectedImageDataList.count < 6 else { return }
-        selectedImageDataList.append(ImageService.compress(data) ?? data)
+        guard selectedImageDataList.count < AIVisionRequest.maximumImageCount else { return }
+        // 压不进上限的图不要静默塞进列表：发出去只会变成一句笼统的网络错误。
+        guard let compressed = ImageService.compress(data) else {
+            GlobalBannerCenter.shared.show(
+                title: "这张图片用不了",
+                message: "压缩后仍然过大或无法读取，请换一张，或减少图片张数。",
+                tone: .warning
+            )
+            return
+        }
+        selectedImageDataList.append(compressed)
     }
 
     @MainActor
     private func appendPhotoItems(_ items: [PhotosPickerItem]) async {
         defer { selectedPhotoItems = [] }
-        for item in items where selectedImageDataList.count < 6 {
+        for item in items where selectedImageDataList.count < AIVisionRequest.maximumImageCount {
             if let data = try? await item.loadTransferable(type: Data.self) {
                 appendImageData(data)
             }
