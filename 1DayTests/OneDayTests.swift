@@ -759,6 +759,11 @@ private actor GatedNotificationDelivery: NotificationDelivering {
     async let first = scheduler.schedule(older)
     await delivery.waitUntilPendingWorkStarts()
     async let second = scheduler.schedule(newer)
+    // 等第二次提交真的把代次抬上去，再放行第一次：
+    // 否则「第一次有没有被取代」取决于线程调度，测试就会偶发飘。
+    while await scheduler.generation(for: id) < 2 {
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
     await delivery.openGate()
     await (first, second)
 

@@ -248,6 +248,11 @@ actor NotificationScheduler {
         }
     }
 
+    /// 该任务当前的调度代次。用于测试和排查「哪一次提交胜出」。
+    func generation(for itemID: UUID) -> Int {
+        generations[itemID] ?? 0
+    }
+
     private func perform(
         _ request: ReminderRequest,
         generation: Int,
