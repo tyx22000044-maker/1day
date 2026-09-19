@@ -82,6 +82,142 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-09 结构化意图解码
+
+@Test func decodesStructuredCreateTaskFromFencedJSON() throws {
+    let reply = """
+    好，我把它整理成一条任务。
+
+    ```json
+    {"intent":"create_task","data":{"title":"交房租","notes":"转账到房东招商银行",\
+    "dueDate":"2026-07-01T00:00:00Z","priority":"high","reminderTime":"2026-06-30T09:30:00Z"}}
+    ```
+    """
+    let draft = AIIntentDecoder.decodeCreateTask(from: reply)
+
+    #expect(draft?.title == "交房租")
+    #expect(draft?.notes == "转账到房东招商银行")
+    #expect(draft?.priority == .high)
+    #expect(draft?.dueDate != nil)
+    #expect(draft?.reminderTime != nil)
+}
+
+@Test func decodesBareJSONEmbeddedInProseAndToleratesMissingOptionals() throws {
+    let reply = "建议这样安排 {\"intent\":\"create_task\",\"data\":{\"title\":\"买机票\"}} 之后再确认"
+    let draft = AIIntentDecoder.decodeCreateTask(from: reply)
+
+    #expect(draft?.title == "买机票")
+    #expect(draft?.notes == nil)
+    #expect(draft?.dueDate == nil)
+    // 没给 priority 不等于猜一个：留 nil，由确认页按默认值展示。
+    #expect(draft?.priority == nil)
+}
+
+@Test func rejectsUntrustworthyStructuredPayloadsInsteadOfGuessing() throws {
+    // 未知 priority 不能静默降级成 none。
+    #expect(AIIntentDecoder.decodeCreateTask(
+        from: "{\"intent\":\"create_task\",\"data\":{\"title\":\"交租\",\"priority\":\"urgent\"}}"
+    ) == nil)
+    // 标题为空。
+    #expect(AIIntentDecoder.decodeCreateTask(
+        from: "{\"intent\":\"create_task\",\"data\":{\"title\":\"   \"}}"
+    ) == nil)
+    // V1.2 才有的 create_event：当前 schema 不认，回退纯文本。
+    #expect(AIIntentDecoder.decodeCreateTask(
+        from: "{\"intent\":\"create_event\",\"data\":{\"title\":\"周会\"}}"
+    ) == nil)
+    // 日期格式不对（非 ISO 8601）→ 整体解码失败，不写入半截草稿。
+    #expect(AIIntentDecoder.decodeCreateTask(
+        from: "{\"intent\":\"create_task\",\"data\":{\"title\":\"交租\",\"dueDate\":\"7月1号\"}}"
+    ) == nil)
+    // 纯文本没有 JSON。
+    #expect(AIIntentDecoder.decodeCreateTask(from: "这周你完成了 3 个任务。") == nil)
+    // 半截 JSON。
+    #expect(AIIntentDecoder.decodeCreateTask(from: "{\"intent\":\"create_task\",\"data\":{\"title\":") == nil)
+}
+
+@Test @MainActor func structuredReplyCreatesDraftThatLocalRulesMissed() async throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+    let reply = """
+    我按图片内容整理如下：
+    ```json
+    {"intent":"create_task","data":{"title":"带护照","dueDate":"2026-07-10T00:00:00Z","priority":"high"}}
+    ```
+    """
+    let service = ScriptedAIService(results: [.success(reply)])
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+    // 这句话本地规则识别不出创建意图，草稿只能来自结构化回复。
+    viewModel.inputText = "看看这两张照片"
+
+    viewModel.send(
+        imageDataList: [Data("fake-image".utf8)],
+        messages: [],
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 200_000_000)
+
+    #expect(viewModel.pendingTask?.title == "带护照")
+    #expect(viewModel.pendingTask?.priority == .high)
+    #expect(viewModel.pendingTask?.dueDate != nil)
+    #expect(viewModel.isShowingConfirmation)
+
+    let assistant = try context.fetch(FetchDescriptor<AIChatMessage>()).filter { $0.role == "assistant" }
+    #expect(assistant.count == 1)
+    // 已经拿到草稿，就不该再出现「整理不出来」的提示。
+    #expect(assistant.first?.content.contains("没能从图片里整理出") == false)
+}
+
+@Test @MainActor func imageRequestWithoutDraftExplainsItself() async throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let settings = try configuredSettings(in: context)
+    let service = ScriptedAIService(results: [.success("这是一张风景照，没有可整理的事项。")])
+    let viewModel = AIChatViewModel(serviceFactory: { _ in service })
+    viewModel.inputText = "看看这两张照片"
+
+    viewModel.send(
+        imageDataList: [Data("fake-image".utf8)],
+        messages: [],
+        settings: settings,
+        planItems: [],
+        selectedDate: .now,
+        modelContext: context
+    )
+    try await Task.sleep(nanoseconds: 200_000_000)
+
+    // 图片请求不能静默返回 nil：要么给可确认结果，要么明确说明没有。
+    #expect(viewModel.pendingTask == nil)
+    let assistant = try context.fetch(FetchDescriptor<AIChatMessage>()).filter { $0.role == "assistant" }
+    #expect(assistant.first?.content.contains("没能从图片里整理出") == true)
+}
+
+@Test @MainActor func structuredDraftPersistsReminderTime() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    let reminder = Calendar.current.date(bySettingHour: 20, minute: 15, second: 0, of: Date())!
+
+    let draft = AIParsedTask(
+        title: "带护照",
+        notes: nil,
+        dueDate: Calendar.current.startOfDay(for: Date()),
+        dueDateText: nil,
+        priority: .high,
+        reminderTime: reminder
+    )
+    let item = PlanAIIntentRecorder.createTask(draft, in: context)
+    try context.save()
+
+    // AI 给的提醒时间必须真的落到任务上，否则 schema 里的字段是摆设。
+    #expect(item.reminderTime != nil)
+    #expect(Calendar.current.isDate(item.reminderTime!, equalTo: reminder, toGranularity: .minute))
+    #expect(item.priority == .high)
+}
+
 // MARK: - F-08 重试成功后要重新进入任务确认
 
 private final class ScriptedAIService: AIService, @unchecked Sendable {
@@ -108,10 +244,6 @@ private final class ScriptedAIService: AIService, @unchecked Sendable {
     func sendMessageWithImages(_ text: String, imageDataList: [Data], history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
         try await sendMessage(text, history: history, context: context)
     }
-
-    func parseStructuredIntent(from text: String) async throws -> AIChatIntentResult? { nil }
-    func parseStructuredIntentWithImage(_ text: String, imageData: Data) async throws -> AIChatIntentResult? { nil }
-    func parseStructuredIntentWithImages(_ text: String, imageDataList: [Data]) async throws -> AIChatIntentResult? { nil }
 }
 
 @Test @MainActor func retryAfterFailedRequestStillOffersTaskConfirmation() async throws {
@@ -213,10 +345,6 @@ private final class SlowAIService: AIService, @unchecked Sendable {
     func sendMessageWithImages(_ text: String, imageDataList: [Data], history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String {
         try await sendMessage(text, history: history, context: context)
     }
-
-    func parseStructuredIntent(from text: String) async throws -> AIChatIntentResult? { nil }
-    func parseStructuredIntentWithImage(_ text: String, imageData: Data) async throws -> AIChatIntentResult? { nil }
-    func parseStructuredIntentWithImages(_ text: String, imageDataList: [Data]) async throws -> AIChatIntentResult? { nil }
 }
 
 @MainActor

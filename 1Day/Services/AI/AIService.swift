@@ -2,13 +2,15 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+/// 对外唯一的 AI 能力面：把用户输入变成一段回复文本。
+///
+/// 之前这里还挂着 `parseStructuredIntent` / `…WithImage(s)` 三个方法，零调用点，
+/// 其中图片版本直接 `return nil` —— 等于对外宣称支持、实际静默不实现。
+/// 结构化意图现在由 `AIIntentDecoder` 在真正处理回复的地方解码，契约只有一条。
 protocol AIService {
     func sendMessage(_ text: String, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String
     func sendMessageWithImage(_ text: String, imageData: Data, history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String
     func sendMessageWithImages(_ text: String, imageDataList: [Data], history: [AIChatHistoryItem], context: AIDataContext?) async throws -> String
-    func parseStructuredIntent(from text: String) async throws -> AIChatIntentResult?
-    func parseStructuredIntentWithImage(_ text: String, imageData: Data) async throws -> AIChatIntentResult?
-    func parseStructuredIntentWithImages(_ text: String, imageDataList: [Data]) async throws -> AIChatIntentResult?
 }
 
 @Model
@@ -87,11 +89,17 @@ enum PlanAIIntentRecorder {
             title: task.title,
             notes: task.notes ?? "",
             dueDate: task.dueDate,
-            reminderTime: nil,
+            reminderTime: task.reminderTime,
             priority: task.priority ?? .none
         )
         return PlanItemService.createTask(draft, in: context)
-            ?? PlanItemService.createTask(title: task.title, notes: task.notes ?? "", dueDate: task.dueDate, priority: task.priority ?? .none, in: context)
+            ?? PlanItemService.createTask(
+                title: task.title,
+                notes: task.notes ?? "",
+                dueDate: task.dueDate,
+                priority: task.priority ?? .none,
+                in: context
+            )
     }
 }
 
@@ -114,16 +122,119 @@ enum PlanAIReplyBuilder {
     }
 }
 
-enum AIChatIntentResult: Equatable {
-    case createTask(AIParsedTask)
-}
-
 struct AIParsedTask: Codable, Equatable {
     var title: String
     var notes: String?
     var dueDate: Date?
     var dueDateText: String?
     var priority: Priority?
+    var reminderTime: Date?
+}
+
+// MARK: - Structured intent payload
+
+/// AI 服务商返回的结构化草稿（docs/AI_BEHAVIOR_SPEC.md §四 · V1.0 create_task）。
+///
+/// 之所以自己定义一份 Codable 而不是直接把 `AIParsedTask` 当协议：模型输出的字段
+/// 需要独立于内部草稿类型的校验和版本策略，`AIParsedTask` 是我们自己的落库前草稿。
+struct AIStructuredTaskPayload: Codable, Equatable {
+    static let createTaskIntent = "create_task"
+    static let supportedIntentRawValues: Set<String> = [createTaskIntent]
+
+    /// 字段规则按 spec：title 必填，其余可选，AI 不确定时给 null 由用户在确认页补。
+    struct Fields: Codable, Equatable {
+        var title: String
+        var notes: String?
+        var dueDate: Date?
+        var priority: String?
+        var reminderTime: Date?
+    }
+
+    var intent: String
+    var data: Fields
+}
+
+enum AIIntentDecoder {
+    /// 从 AI 回复中提取并校验 create_task 草稿。
+    ///
+    /// 任何不认识的形状都返回 nil，让调用方回退到纯文本展示——绝不把半截数据
+    /// 送进确认卡，也不静默改写字段。
+    static func decodeCreateTask(from reply: String) -> AIParsedTask? {
+        guard let json = extractJSONObject(from: reply),
+              let payload = try? JSONDecoder.iso8601.decode(AIStructuredTaskPayload.self, from: json) else {
+            return nil
+        }
+        guard payload.intent == AIStructuredTaskPayload.createTaskIntent else { return nil }
+        return validate(payload.data)
+    }
+
+    private static func validate(_ fields: AIStructuredTaskPayload.Fields) -> AIParsedTask? {
+        let title = fields.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+
+        var priority: Priority?
+        if let raw = fields.priority {
+            // 严格：出现无法识别的优先级就当作不可信回复，回退纯文本，不猜。
+            guard let parsed = Priority(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                return nil
+            }
+            priority = parsed
+        }
+
+        let notes = fields.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return AIParsedTask(
+            title: title,
+            notes: (notes?.isEmpty == false) ? notes : nil,
+            dueDate: fields.dueDate,
+            dueDateText: nil,
+            priority: priority,
+            reminderTime: fields.reminderTime
+        )
+    }
+
+    /// 兼容两种回法：``` 围栏里的 JSON 块，以及裸 JSON 混在解释文字里。
+    static func extractJSONObject(from reply: String) -> Data? {
+        if let block = fencedJSONObject(in: reply), let data = block.data(using: .utf8) {
+            return data
+        }
+        guard let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"), start < end else {
+            return nil
+        }
+        return String(reply[start...end]).data(using: .utf8)
+    }
+
+    /// 取第一个看起来是 JSON 对象的围栏块；语言标注忽略，
+    /// 因为模型有时写 ```json、有时只写 ```。
+    private static func fencedJSONObject(in text: String) -> String? {
+        var body: [String] = []
+        var inside = false
+
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("```") {
+                if inside {
+                    let candidate = body.joined(separator: "\n")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if candidate.hasPrefix("{"), candidate.hasSuffix("}") {
+                        return candidate
+                    }
+                    body = []
+                }
+                inside.toggle()
+                continue
+            }
+            if inside { body.append(String(rawLine)) }
+        }
+        return nil
+    }
+}
+
+private extension JSONDecoder {
+    static var iso8601: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
 }
 
 struct ConfiguredAIService: AIService {
@@ -224,21 +335,19 @@ struct ConfiguredAIService: AIService {
             throw AIClientError.providerError("图片识别失败，请检查网络连接")
         }
     }
-
-    func parseStructuredIntent(from text: String) async throws -> AIChatIntentResult? {
-        LocalAIIntentParser.parseTask(from: text).map { .createTask($0) }
-    }
-
-    func parseStructuredIntentWithImage(_ text: String, imageData: Data) async throws -> AIChatIntentResult? {
-        try await parseStructuredIntentWithImages(text, imageDataList: [imageData])
-    }
-
-    func parseStructuredIntentWithImages(_ text: String, imageDataList: [Data]) async throws -> AIChatIntentResult? {
-        nil
-    }
 }
 
 enum AIPromptBuilder {
+    /// AI 回复里可被确认卡解析的 JSON 约定，见 docs/AI_BEHAVIOR_SPEC.md §四。
+    static let structuredTaskContract = """
+    当用户这句话是要创建一条任务时，请在回复末尾额外给出一个 ```json 代码块，格式如下；\
+    其余情况说明用自然语言写，不要多加别的 JSON 块。
+    {"intent":"create_task","data":{"title":"交房租","notes":"转账到房东招商银行",\
+    "dueDate":"2026-07-01T00:00:00Z","priority":"high","reminderTime":null}}
+    字段规则：title 必填且非空；notes 可选；dueDate 和 reminderTime 为 ISO 8601 或 null；\
+    priority 只能是 none / low / medium / high 之一。无法确定的字段给 null，由用户在确认页补填。
+    """
+
     static func makeMessages(
         text: String,
         history: [AIChatHistoryItem],
@@ -267,6 +376,8 @@ enum AIPromptBuilder {
         如果用户给出多张图片或多个事项，逐项整理，不要只处理第一项或最明显的一项。
         不要提供金融、医疗或法律建议。
         请优先使用 \(language) 回复。
+
+        \(structuredTaskContract)
         """
 
         if let context {
@@ -515,6 +626,7 @@ final class AIChatViewModel {
                 handleSuccessfulResponse(
                     response,
                     originalText: text,
+                    hadImages: !imageDataList.isEmpty,
                     provider: provider,
                     modelContext: modelContext
                 )
@@ -566,6 +678,7 @@ final class AIChatViewModel {
                 handleSuccessfulResponse(
                     response,
                     originalText: text,
+                    hadImages: !images.isEmpty,
                     provider: provider,
                     modelContext: modelContext
                 )
@@ -595,15 +708,31 @@ final class AIChatViewModel {
     private func handleSuccessfulResponse(
         _ response: String,
         originalText: String,
+        hadImages: Bool,
         provider: AIProvider,
         modelContext: ModelContext
     ) {
-        modelContext.insert(AIChatMessage(role: "assistant", content: response, provider: provider))
-        if let draft = LocalAIIntentParser.parseTask(from: originalText) {
+        let draft = resolveDraft(from: response, originalText: originalText)
+        var content = response
+        if draft == nil, hadImages {
+            // 发了图片却没整理出可确认的任务：明确说出来，而不是静默只给一段文字。
+            content += "\n\n（没能从图片里整理出可确认的任务，可以补一句说明，例如「周五提交报告」，或换一张更清晰的图再试。）"
+        }
+        modelContext.insert(AIChatMessage(role: "assistant", content: content, provider: provider))
+        if let draft {
             pendingTask = draft
             isShowingConfirmation = true
         }
         HapticEngine.success()
+    }
+
+    /// 回复 → 草稿的解析优先级：服务商给的结构化 JSON 最可信，其次才是本地规则。
+    /// 两者都不认时才按普通聊天展示（AI_BEHAVIOR_SPEC §五 意图识别规则）。
+    private func resolveDraft(from response: String, originalText: String) -> AIParsedTask? {
+        if let structured = AIIntentDecoder.decodeCreateTask(from: response) {
+            return structured
+        }
+        return LocalAIIntentParser.parseTask(from: originalText)
     }
 
     // MARK: - Task Draft Confirmation

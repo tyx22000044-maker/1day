@@ -116,7 +116,10 @@ struct AIChatView: View {
             }
             .sheet(isPresented: $viewModel.isShowingConfirmation) {
                 if let pendingTask = viewModel.pendingTask {
-                    TaskDraftConfirmationView(draft: pendingTask) { task in
+                    TaskDraftConfirmationView(
+                        draft: pendingTask,
+                        defaultReminderTime: currentSettings?.defaultReminderTime ?? DateComponents(hour: 9, minute: 0)
+                    ) { task in
                         viewModel.save(task, settings: currentSettings, modelContext: modelContext)
                     }
                 }
@@ -462,15 +465,26 @@ private struct TaskDraftConfirmationView: View {
     @State private var hasDueDate: Bool
     @State private var dueDate: Date
     @State private var priority: Priority
+    @State private var hasReminder: Bool
+    @State private var reminderTime: Date
 
     let onConfirm: (AIParsedTask) -> Void
 
-    init(draft: AIParsedTask, onConfirm: @escaping (AIParsedTask) -> Void) {
+    init(draft: AIParsedTask, defaultReminderTime: DateComponents, onConfirm: @escaping (AIParsedTask) -> Void) {
         _title = State(initialValue: draft.title)
         _notes = State(initialValue: draft.notes ?? "")
         _hasDueDate = State(initialValue: draft.dueDate != nil)
         _dueDate = State(initialValue: draft.dueDate ?? Date())
         _priority = State(initialValue: draft.priority ?? .none)
+        // AI 给了提醒时间就带上；没给则以用户在设置里定的默认提醒时间起算。
+        let fallback = Calendar.current.date(
+            bySettingHour: defaultReminderTime.hour ?? 9,
+            minute: defaultReminderTime.minute ?? 0,
+            second: 0,
+            of: draft.dueDate ?? Date()
+        ) ?? Date()
+        _reminderTime = State(initialValue: draft.reminderTime ?? fallback)
+        _hasReminder = State(initialValue: draft.reminderTime != nil)
         self.onConfirm = onConfirm
     }
 
@@ -510,6 +524,18 @@ private struct TaskDraftConfirmationView: View {
                                 SystemPanelDivider()
                                 DatePicker("日期", selection: $dueDate, displayedComponents: .date)
                                     .padding(.vertical, 6)
+
+                                SystemPanelDivider()
+                                Toggle(isOn: $hasReminder) {
+                                    AppSettingsRow(icon: "bell.fill", title: "设置提醒", subtitle: "到时间提醒我")
+                                }
+                                .tint(FamilyUI.accent)
+
+                                if hasReminder {
+                                    SystemPanelDivider()
+                                    DatePicker("提醒时间", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                        .padding(.vertical, 6)
+                                }
                             }
 
                             SystemPanelDivider()
@@ -541,7 +567,8 @@ private struct TaskDraftConfirmationView: View {
                             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
                             dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil,
                             dueDateText: nil,
-                            priority: priority
+                            priority: priority,
+                            reminderTime: hasDueDate && hasReminder ? reminderTime : nil
                         )
                         onConfirm(task)
                         dismiss()
