@@ -820,7 +820,10 @@ private struct ReminderSettingsView: View {
                 minute: settings.defaultReminderMinute
             )
             // 只改设置不管已排好的通知，用户会以为整个改动没生效。
-            NotificationService.applyDefaultReminderRefresh(for: allItems)
+            NotificationService.applyDefaultReminderRefresh(
+                for: allItems,
+                defaultReminderTime: settings.defaultReminderTime
+            )
         }
     }
 
@@ -842,7 +845,10 @@ private struct ReminderSettingsView: View {
                                 settings.defaultReminderMinute = 0
                                 settings.updatedAt = Date()
                                 NotificationService.syncDefaultReminderTime(hour: hour, minute: 0)
-                                NotificationService.applyDefaultReminderRefresh(for: allItems)
+                                NotificationService.applyDefaultReminderRefresh(
+                                    for: allItems,
+                                    defaultReminderTime: settings.defaultReminderTime
+                                )
                                 HapticEngine.success()
                             } label: {
                                 HStack {

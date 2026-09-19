@@ -363,12 +363,13 @@ enum NotificationService {
     /// 带自定义 reminderTime 的任务按用户显式设定的时间走，默认值改动不影响它们。
     static func defaultReminderRefresh(
         for items: [PlanItem],
+        defaultReminderTime: DateComponents,
         language: AppLanguage? = nil
     ) -> ReminderRefreshPlan {
         var plan = ReminderRefreshPlan()
         for item in items {
             guard !item.isCompleted, item.reminderTime == nil, item.dueDate != nil else { continue }
-            if let request = reminderRequest(for: item, language: language) {
+            if let request = reminderRequest(for: item, language: language, defaultReminderTime: defaultReminderTime) {
                 plan.reschedule.append(request)
             } else {
                 // 新默认点已经过了：留着旧时间的通知，等于按用户没选的时间提醒。
@@ -379,8 +380,8 @@ enum NotificationService {
     }
 
     /// 改完默认提醒时间后调用：让已有任务的通知跟上，不只是新任务受益。
-    static func applyDefaultReminderRefresh(for items: [PlanItem]) {
-        let plan = defaultReminderRefresh(for: items)
+    static func applyDefaultReminderRefresh(for items: [PlanItem], defaultReminderTime: DateComponents) {
+        let plan = defaultReminderRefresh(for: items, defaultReminderTime: defaultReminderTime)
         guard plan.affectedCount > 0 else { return }
         AppLogger.data("Refreshing \(plan.affectedCount) default-time reminders")
         Task {
@@ -452,12 +453,18 @@ enum NotificationService {
     }
 
     /// 从任务同步读出通知快照。已完成 / 没有日期 / 触发时间已过，一律归为「不该有提醒」。
+    /// `defaultReminderTime` 不传时退回 UserDefaults 里的默认点（服务层没有 SwiftData 上下文）。
     static func reminderRequest(
         for item: PlanItem,
-        language: AppLanguage? = nil
+        language: AppLanguage? = nil,
+        defaultReminderTime: DateComponents? = nil
     ) -> ReminderRequest? {
         guard !item.isCompleted, let dueDate = item.dueDate else { return nil }
-        let triggerDate = reminderDate(for: dueDate, reminderTime: item.reminderTime)
+        let triggerDate = reminderDate(
+            for: dueDate,
+            reminderTime: item.reminderTime,
+            defaultReminderTime: defaultReminderTime
+        )
         guard triggerDate > Date() else { return nil }
         return ReminderRequest(
             itemID: item.id,
@@ -507,20 +514,18 @@ enum NotificationService {
         return language == .english ? "\(weekday) \(suffix)" : "\(weekday)\(suffix)"
     }
 
-    private static func reminderDate(for dueDate: Date, reminderTime: Date?) -> Date {
+    private static func reminderDate(
+        for dueDate: Date,
+        reminderTime: Date?,
+        defaultReminderTime: DateComponents? = nil
+    ) -> Date {
         let calendar = Calendar.current
-        let timeSource = reminderTime ?? calendar.date(
-            bySettingHour: defaultReminderHour,
-            minute: defaultReminderMinute,
-            second: 0,
-            of: Date()
-        ) ?? Date()
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: timeSource)
-        return calendar.date(
-            bySettingHour: timeComponents.hour ?? defaultReminderHour,
-            minute: timeComponents.minute ?? defaultReminderMinute,
-            second: 0,
-            of: dueDate
-        ) ?? dueDate
+        let fallback = defaultReminderTime
+            ?? DateComponents(hour: defaultReminderHour, minute: defaultReminderMinute)
+        let chosen = reminderTime.map { calendar.dateComponents([.hour, .minute], from: $0) }
+        return DateComponents(
+            hour: chosen?.hour ?? fallback.hour,
+            minute: chosen?.minute ?? fallback.minute
+        ).reminderDate(on: dueDate, calendar: calendar)
     }
 }
