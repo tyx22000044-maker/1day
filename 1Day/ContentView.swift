@@ -37,7 +37,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            bootstrapIfNeeded()
+            bootstrapSettings = bootstrapOrRepairSettings()
             applyFeedbackPreferences()
             revalidateAIConfiguration()
             if let s = settings.first {
@@ -109,19 +109,21 @@ struct ContentView: View {
         .environment(appViewModel)
     }
 
-    private func bootstrapIfNeeded() {
-        guard settings.isEmpty, bootstrapSettings == nil else { return }
+    /// 每次启动都过一遍：没有设置就建一条，历史上多出来的收敛成一条。
+    /// 不能只在 `settings.isEmpty` 时调用——已经有多条的情况恰恰需要修复。
+    private func bootstrapOrRepairSettings() -> UserSettings? {
         do {
-            bootstrapSettings = try SettingsBootstrap.ensureSettings(in: modelContext)
+            return try SettingsBootstrap.ensureSettings(in: modelContext)
         } catch {
             // 首启动就写不下时不能继续假装一切正常：用户接下来看到的
             // 「已完成设置」会在重启后消失，又会掉回 onboarding。
-            AppLogger.dataError("初始化设置失败: \(error.localizedDescription)")
+            AppLogger.dataError("初始化或修复设置失败: \(error.localizedDescription)")
             GlobalBannerCenter.shared.show(
                 title: "无法保存初始设置",
                 message: "存储空间可能不可用。完成引导后请先在「设置 → 数据管理」导出备份。",
                 tone: .error
             )
+            return nil
         }
     }
 

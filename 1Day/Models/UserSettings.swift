@@ -5,6 +5,13 @@ import SwiftData
 final class UserSettings {
     static let currentDataSchemaVersion = 1
 
+    /// 全库只应该有一条设置记录，用固定 id 表达这个约束。
+    ///
+    /// `@Attribute(.unique)` 只挡得住相同 id 的重复插入，挡不住「两条不同 id 的设置」；
+    /// 而各视图统一用 `settings.first` 当当前设置，一旦多出来就会各取一条。
+    /// 所以新记录一律用这个 id，多余的历史记录在启动时清理。
+    static let singletonID = UUID(uuidString: "1da01da0-0000-4000-8000-000000000001")!
+
     @Attribute(.unique) var id: UUID
     var dataSchemaVersion: Int = UserSettings.currentDataSchemaVersion
 
@@ -31,7 +38,8 @@ final class UserSettings {
     var createdAt: Date
     var updatedAt: Date
 
-    init(nickname: String = "",
+    init(id: UUID = UserSettings.singletonID,
+         nickname: String = "",
          avatarSymbolName: String = "person.crop.circle",
          avatarImageData: Data? = nil,
          language: AppLanguage = .system,
@@ -45,7 +53,7 @@ final class UserSettings {
          isHapticsEnabled: Bool = true,
          isSoundEffectsEnabled: Bool = true,
          hasCompletedOnboarding: Bool = false) {
-        self.id = UUID()
+        self.id = id
         self.nickname = nickname
         self.avatarSymbolName = avatarSymbolName
         self.avatarImageData = avatarImageData
@@ -91,20 +99,35 @@ final class UserSettings {
     }
 }
 
-/// 首启动时创建唯一的 UserSettings 记录。
+/// 首启动时创建唯一的 UserSettings 记录，并把历史遗留的多余记录收敛成一条。
 ///
 /// 必须显式 save：之前只 insert 就交给 SwiftData autosave，用户在真正落盘前
 /// 杀掉进程，下次启动会再次掉进 onboarding，看起来像设置没被保存。
 enum SettingsBootstrap {
     @discardableResult
     static func ensureSettings(in context: ModelContext) throws -> UserSettings {
-        if let existing = try context.fetch(FetchDescriptor<UserSettings>()).first {
-            return existing
+        let existing = try context.fetch(FetchDescriptor<UserSettings>())
+
+        let keep: UserSettings
+        if existing.isEmpty {
+            let created = UserSettings()
+            context.insert(created)
+            keep = created
+            AppLogger.data("Initialized UserSettings: \(created.id)")
+        } else {
+            // 多条时保留最早创建的那条：它最可能是用户真实数据所在。
+            keep = existing.min { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            } ?? existing[0]
         }
-        let settings = UserSettings()
-        context.insert(settings)
+
+        for extra in existing where extra.id != keep.id {
+            context.delete(extra)
+            AppLogger.data("Removed duplicate UserSettings: \(extra.id)")
+        }
+
         try context.save()
-        AppLogger.data("Initialized UserSettings: \(settings.id)")
-        return settings
+        return keep
     }
 }

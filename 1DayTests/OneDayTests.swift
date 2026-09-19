@@ -84,6 +84,39 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-19 UserSettings 单例保证
+
+@Test func newUserSettingsAllShareTheSingletonID() {
+    #expect(UserSettings().id == UserSettings.singletonID)
+    #expect(UserSettings(nickname: "甲").id == UserSettings.singletonID)
+}
+
+@Test func bootstrapCollapsesLegacyDuplicateRecordsIntoTheEarliest() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+
+    // 模拟历史脏数据：两条不同 id 的设置。各视图都用 settings.first 取当前设置，
+    // 留着就会有人读到「早期昵称」、有人读到「后来多出来的」。
+    let earlier = UserSettings(id: UUID(), nickname: "早期昵称")
+    earlier.createdAt = Date(timeIntervalSince1970: 1_000)
+    let later = UserSettings(id: UUID(), nickname: "后来多出来的")
+    later.createdAt = Date(timeIntervalSince1970: 5_000)
+    context.insert(earlier)
+    context.insert(later)
+    try context.save()
+    #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 2)
+
+    let kept = try SettingsBootstrap.ensureSettings(in: context)
+
+    #expect(kept.id == earlier.id)
+    #expect(kept.nickname == "早期昵称")
+    #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
+
+    // 再启动一次也不能又变出第二条。
+    _ = try SettingsBootstrap.ensureSettings(in: ModelContext(container))
+    #expect(try ModelContext(container).fetch(FetchDescriptor<UserSettings>()).count == 1)
+}
+
 // MARK: - F-18 schema 版本与迁移计划
 
 @Test func schemaRegistersEveryPersistentModel() {
