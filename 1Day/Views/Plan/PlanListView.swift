@@ -33,7 +33,7 @@ struct PlanListView: View {
     private var groupedItems: [(String, [PlanItem])] {
         let calendar = Calendar.current
         let today = selectedDate
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        let tomorrow = today.shiftedDays(1, calendar: calendar)
         let endOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.end ?? today
 
         // Single pass over allItems: every task is assigned directly to exactly
@@ -240,11 +240,21 @@ private struct PlanItemRow: View {
     }
 }
 
-private struct QuickScheduleSheet: View {
+struct QuickScheduleSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var settings: [UserSettings]
     @Bindable var item: PlanItem
-    @State private var selectedDate = Date()
+    @State private var selectedDate: Date
+
+    init(item: PlanItem) {
+        self.item = item
+        _selectedDate = State(initialValue: Self.startDay(for: item))
+    }
+
+    /// 快捷排程从任务已有日期起算，只有从未安排过的任务才落到今天。
+    static func startDay(for item: PlanItem, calendar: Calendar = .current) -> Date {
+        calendar.startOfDay(for: item.dueDate ?? Date())
+    }
 
     private var language: AppLanguage { settings.first?.language ?? .system }
 
@@ -311,7 +321,12 @@ private struct QuickScheduleSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(localized("确定", "Done")) {
-                                                PlanItemService.updateSchedule(for: item, dueDate: selectedDate)
+                        // 只挪日期：自定义提醒时刻要原样保留，否则快捷排程会把用户设定的时间清掉。
+                        PlanItemService.updateSchedule(
+                            for: item,
+                            dueDate: Calendar.current.startOfDay(for: selectedDate),
+                            reminderTime: item.reminderTime
+                        )
                         HapticEngine.success()
                         dismiss()
                     }
@@ -326,22 +341,13 @@ private struct QuickScheduleSheet: View {
         let today = cal.startOfDay(for: Date())
         return [
             (localized("今天", "Today"), today),
-            (localized("明天", "Tomorrow"), cal.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)),
-            (localized("后天", "In 2 days"), cal.date(byAdding: .day, value: 2, to: today) ?? today.addingTimeInterval(172_800)),
-            (localized("下周一", "Next Monday"), nextWeekday(2, from: today))
+            (localized("明天", "Tomorrow"), today.shiftedDays(1, calendar: cal)),
+            (localized("后天", "In 2 days"), today.shiftedDays(2, calendar: cal)),
+            (localized("下周一", "Next Monday"), today.shiftedDays(
+                Date.daysUntilNext(weekday: 2, from: today, calendar: cal), calendar: cal
+            ))
         ]
     }
-
-    private func nextWeekday(_ weekday: Int, from start: Date) -> Date {
-        let cal = Calendar.current
-        let current = cal.component(.weekday, from: start)
-        let daysToAdd = ((weekday - current + 7) % 7).nonzero(fallback: 7)
-        return cal.date(byAdding: .day, value: daysToAdd, to: start)!
-    }
-}
-
-private extension Int {
-    func nonzero(fallback: Int) -> Int { self == 0 ? fallback : self }
 }
 
 struct TaskEditorSheet: View {

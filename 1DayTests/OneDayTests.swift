@@ -1806,3 +1806,50 @@ private func withDefaultReminderTime(
         #expect(plan.cancelIDs == [followsDefault.id])
     }
 }
+
+// MARK: - F-32 快捷排程的日期边界
+
+@Test @MainActor func quickScheduleSeedsFromTheTasksOwnDay() throws {
+    let calendar = Calendar.current
+    let inFiveDays = try #require(calendar.date(byAdding: .day, value: 5, to: .now))
+
+    let scheduled = PlanItem(title: "已安排", dueDate: inFiveDays)
+    // 起点必须是任务自己那一天的零点，而不是「今天」。
+    #expect(QuickScheduleSheet.startDay(for: scheduled) == calendar.startOfDay(for: inFiveDays))
+
+    let unscheduled = PlanItem(title: "未安排", dueDate: nil)
+    #expect(QuickScheduleSheet.startDay(for: unscheduled) == calendar.startOfDay(for: .now))
+}
+
+@Test func dayShiftCrossesMonthAndYearBoundaries() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+
+    let newYearsEve = try #require(calendar.date(from: DateComponents(year: 2026, month: 12, day: 31)))
+    let landedOn = calendar.dateComponents([.year, .month, .day], from: newYearsEve.shiftedDays(1, calendar: calendar))
+    #expect((landedOn.year, landedOn.month, landedOn.day) == (2027, 1, 1))
+
+    let endOfJanuary = try #require(calendar.date(from: DateComponents(year: 2026, month: 1, day: 31)))
+    let february = endOfJanuary.shiftedDays(1, calendar: calendar)
+    let februaryParts = calendar.dateComponents([.month, .day], from: february)
+    #expect((februaryParts.month, februaryParts.day) == (2, 1))
+}
+
+@Test func nextWeekdayNeverResolvesToTheSameDay() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+    let anchor = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 1)))
+
+    for offset in 0..<7 {
+        let day = anchor.shiftedDays(offset, calendar: calendar)
+        let weekday = calendar.component(.weekday, from: day)
+        let nextWeekday = ((weekday % 7) + 1)
+
+        // 同一个 weekday 要到下一周，紧邻的 weekday 就是 +1 天。
+        #expect(Date.daysUntilNext(weekday: weekday, from: day, calendar: calendar) == 7)
+        #expect(Date.daysUntilNext(weekday: nextWeekday, from: day, calendar: calendar) == 1)
+
+        let landed = day.shiftedDays(Date.daysUntilNext(weekday: nextWeekday, from: day, calendar: calendar), calendar: calendar)
+        #expect(calendar.component(.weekday, from: landed) == nextWeekday)
+    }
+}

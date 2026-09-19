@@ -298,8 +298,7 @@ struct TodayView: View {
                             Label(localized(.groupToday), systemImage: "sun.max")
                         }
                         Button {
-                            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)!
-                            createQuickTask(dueDate: tomorrow)
+                            createQuickTask(dueDate: selectedDate.shiftedDays(1))
                         } label: {
                             Label(localized(.groupTomorrow), systemImage: "sunrise")
                         }

@@ -401,4 +401,17 @@ extension Date {
     var startOfDay: Date {
         Calendar.current.startOfDay(for: self)
     }
+
+    /// 偏移 n 天。日历运算在极端时区设置下可能给 nil，退回按 24 小时推进，
+    /// 排程入口不该因为一次日历换算失败就崩溃。
+    func shiftedDays(_ days: Int, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: days, to: self)
+            ?? addingTimeInterval(TimeInterval(days) * 86_400)
+    }
+
+    /// 从 date 所在日期往后到下一个 target weekday（1 = 周日）要加几天；当天不算，至少 1 天。
+    static func daysUntilNext(weekday target: Int, from date: Date, calendar: Calendar = .current) -> Int {
+        let delta = (target - calendar.component(.weekday, from: date) + 7) % 7
+        return delta == 0 ? 7 : delta
+    }
 }
