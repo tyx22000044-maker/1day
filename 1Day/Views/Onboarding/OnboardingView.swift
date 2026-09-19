@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OnboardingView: View {
+    @Environment(\.modelContext) private var modelContext
     @Bindable var settings: UserSettings
 
     @State private var currentStep = 0
@@ -446,7 +447,19 @@ struct OnboardingView: View {
     private func finish() {
         settings.hasCompletedOnboarding = true
         touch()
-        HapticEngine.success()
+        // 引导期间改过的字段（昵称、语言、提醒时间、AI 选择）必须随这次
+        // 完成一起落盘，否则进程被杀后用户会重新回到 onboarding。
+        do {
+            try modelContext.save()
+            HapticEngine.success()
+        } catch {
+            AppLogger.dataError("保存 onboarding 结果失败: \(error.localizedDescription)")
+            GlobalBannerCenter.shared.show(
+                title: "设置未能保存",
+                message: "存储空间可能不可用，请检查设备容量后重试。",
+                tone: .error
+            )
+        }
     }
 
     private func touch() {

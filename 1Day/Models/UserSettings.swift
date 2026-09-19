@@ -90,3 +90,21 @@ final class UserSettings {
         DateComponents(hour: defaultReminderHour, minute: defaultReminderMinute)
     }
 }
+
+/// 首启动时创建唯一的 UserSettings 记录。
+///
+/// 必须显式 save：之前只 insert 就交给 SwiftData autosave，用户在真正落盘前
+/// 杀掉进程，下次启动会再次掉进 onboarding，看起来像设置没被保存。
+enum SettingsBootstrap {
+    @discardableResult
+    static func ensureSettings(in context: ModelContext) throws -> UserSettings {
+        if let existing = try context.fetch(FetchDescriptor<UserSettings>()).first {
+            return existing
+        }
+        let settings = UserSettings()
+        context.insert(settings)
+        try context.save()
+        AppLogger.data("Initialized UserSettings: \(settings.id)")
+        return settings
+    }
+}

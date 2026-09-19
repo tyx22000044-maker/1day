@@ -45,6 +45,43 @@ import Testing
     #expect(!item.isOverdue(asOf: reference))
 }
 
+// MARK: - F-02 首启动设置必须立即落盘
+
+private func makeInMemoryContainer() throws -> ModelContainer {
+    let configuration = ModelConfiguration(
+        schema: OneDayModelContainer.schema,
+        isStoredInMemoryOnly: true
+    )
+    return OneDayModelContainer.make(configuration: configuration).container
+}
+
+@Test func settingsBootstrapPersistsImmediately() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+
+    let created = try SettingsBootstrap.ensureSettings(in: context)
+
+    // 另一个 context 看不见未保存的改动，能取到就证明确实 save 了。
+    let probe = ModelContext(container)
+    let fetched = try probe.fetch(FetchDescriptor<UserSettings>())
+    #expect(fetched.count == 1)
+    #expect(fetched.first?.id == created.id)
+}
+
+@Test func settingsBootstrapIsIdempotentAcrossRepeatedLaunches() throws {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+
+    let first = try SettingsBootstrap.ensureSettings(in: context)
+    // onAppear 可能被多次触发，模拟重复启动。
+    let second = try SettingsBootstrap.ensureSettings(in: context)
+    let third = try SettingsBootstrap.ensureSettings(in: ModelContext(container))
+
+    #expect(first.id == second.id)
+    #expect(second.id == third.id)
+    #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
+}
+
 // MARK: - F-01 持久化降级必须可见
 
 private func makeTempDirectory() throws -> URL {

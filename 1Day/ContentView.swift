@@ -110,9 +110,18 @@ struct ContentView: View {
 
     private func bootstrapIfNeeded() {
         guard settings.isEmpty, bootstrapSettings == nil else { return }
-        let newSettings = UserSettings()
-        modelContext.insert(newSettings)
-        bootstrapSettings = newSettings
+        do {
+            bootstrapSettings = try SettingsBootstrap.ensureSettings(in: modelContext)
+        } catch {
+            // 首启动就写不下时不能继续假装一切正常：用户接下来看到的
+            // 「已完成设置」会在重启后消失，又会掉回 onboarding。
+            AppLogger.dataError("初始化设置失败: \(error.localizedDescription)")
+            GlobalBannerCenter.shared.show(
+                title: "无法保存初始设置",
+                message: "存储空间可能不可用。完成引导后请先在「设置 → 数据管理」导出备份。",
+                tone: .error
+            )
+        }
     }
 
     private func applyFeedbackPreferences() {
