@@ -30,6 +30,21 @@ enum SettingsDataCoordinator {
     }
 }
 
+enum BackupRestoreError: LocalizedError, Equatable {
+    case duplicateRecordID(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .duplicateRecordID(let id):
+            return "备份文件中有重复的记录（\(id)），已停止导入。"
+        }
+    }
+
+    var recoverySuggestion: String? {
+        "你的现有数据没有被改动。请重新导出一份备份，或删掉重复的那条记录后再试。"
+    }
+}
+
 enum JSONBackupService {
     static func exportBackup(
         planItems: [PlanItem],
@@ -54,6 +69,12 @@ enum JSONBackupService {
         return url
     }
 
+    /// 恢复备份，按「先验后改」的事务顺序执行。
+    ///
+    /// 旧实现先删库再插入，任何一步失败都会留下半截状态：原数据已经没了，
+    /// 恢复数据可能只进来一部分，而通知早在保存之前就已经排好，指向并不存在的任务。
+    /// 现在：解码 + 校验 + 构造全部成功后才开始改动；保存失败则 rollback 回到改动前，
+    /// 通知只在真正落盘之后重建。
     static func restoreBackup(
         from url: URL,
         existingPlanItems: [PlanItem],
@@ -68,30 +89,23 @@ enum JSONBackupService {
             }
         }
 
-        let data = try Data(contentsOf: url)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let envelope = try decoder.decode(BackupEnvelope.self, from: data)
+        // 阶段一：完全不触碰 context，任何失败都还是「原样」。
+        let restored = try prepareRestorePayload(from: url)
+        // 待删对象的 id 必须提前取，删除并保存之后它们就不能再被访问了。
+        let replacedReminderIDs = existingPlanItems.map(\.id)
 
-        for item in existingPlanItems {
-            NotificationService.cancelTaskReminder(for: item)
-            context.delete(item)
-        }
-        for note in existingNotes {
-            context.delete(note)
-        }
+        // 阶段二：关掉 autosave，让整次替换成为一个可回滚的事务。
+        let hadAutosave = context.autosaveEnabled
+        context.autosaveEnabled = false
+        defer { context.autosaveEnabled = hadAutosave }
 
-        for backup in envelope.planItems {
-            let item = backup.makePlanItem()
-            context.insert(item)
-            NotificationService.scheduleTaskReminder(for: item)
-        }
+        for item in existingPlanItems { context.delete(item) }
+        for note in existingNotes { context.delete(note) }
 
-        for backup in envelope.notes {
-            context.insert(backup.makeNote())
-        }
+        for item in restored.planItems { context.insert(item) }
+        for note in restored.notes { context.insert(note) }
 
-        if let settingsBackup = envelope.settings {
+        if let settingsBackup = restored.settings {
             let targetSettings = existingSettings ?? UserSettings()
             settingsBackup.apply(to: targetSettings)
             if existingSettings == nil {
@@ -99,7 +113,59 @@ enum JSONBackupService {
             }
         }
 
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            // 所有改动都还没进库，rollback 后原数据仍然是唯一事实。
+            context.rollback()
+            AppLogger.dataError("备份恢复保存失败，已回滚，原数据保持不变: \(error.localizedDescription)")
+            throw error
+        }
+
+        // 阶段三：只有确认落盘，才重建提醒，避免通知指向没保存成功的任务。
+        for itemID in replacedReminderIDs { NotificationService.cancelTaskReminder(itemID: itemID) }
+        for item in restored.planItems { NotificationService.scheduleTaskReminder(for: item) }
+        AppLogger.data("Restored backup: \(restored.planItems.count) tasks, \(restored.notes.count) notes")
+    }
+
+    /// 解码 + 校验 + 构造出待写入的对象；不修改 context。
+    private static func prepareRestorePayload(from url: URL) throws -> RestorePayload {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let envelope = try decoder.decode(BackupEnvelope.self, from: data)
+
+        var seenIDs = Set<UUID>()
+        var planItems: [PlanItem] = []
+        planItems.reserveCapacity(envelope.planItems.count)
+        for backup in envelope.planItems {
+            guard seenIDs.insert(backup.id).inserted else {
+                throw BackupRestoreError.duplicateRecordID(backup.id.uuidString)
+            }
+            planItems.append(backup.makePlanItem())
+        }
+
+        var noteIDs = Set<UUID>()
+        var notes: [Note] = []
+        notes.reserveCapacity(envelope.notes.count)
+        for backup in envelope.notes {
+            guard noteIDs.insert(backup.id).inserted else {
+                throw BackupRestoreError.duplicateRecordID(backup.id.uuidString)
+            }
+            notes.append(backup.makeNote())
+        }
+
+        return RestorePayload(
+            planItems: planItems,
+            notes: notes,
+            settings: envelope.settings
+        )
+    }
+
+    private struct RestorePayload {
+        let planItems: [PlanItem]
+        let notes: [Note]
+        let settings: UserSettingsBackup?
     }
 
     static func clearUserData(

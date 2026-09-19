@@ -82,6 +82,128 @@ private func makeInMemoryContainer() throws -> ModelContainer {
     #expect(try context.fetch(FetchDescriptor<UserSettings>()).count == 1)
 }
 
+// MARK: - F-03 备份恢复必须是可回滚的单一事务
+
+private func writeBackupJSON(_ json: String) throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("1Day-backup-\(UUID().uuidString).json")
+    try Data(json.utf8).write(to: url)
+    return url
+}
+
+private func backupItemJSON(id: String, title: String) -> String {
+    """
+    {"id":"\(id)","title":"\(title)","notes":"","statusRawValue":"pending",\
+    "priorityRawValue":"none","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}
+    """
+}
+
+private func backupEnvelopeJSON(planItems: [String], notes: [String] = []) -> String {
+    """
+    {"schemaVersion":1,"exportedAt":"2026-01-01T00:00:00Z",\
+    "planItems":[\(planItems.joined(separator: ","))],"notes":[\(notes.joined(separator: ","))]}
+    """
+}
+
+private func seedRestoreContext() throws -> (container: ModelContainer, context: ModelContext) {
+    let container = try makeInMemoryContainer()
+    let context = ModelContext(container)
+    context.insert(PlanItem(title: "原有任务"))
+    context.insert(Note(title: "原有笔记", content: "原内容"))
+    try context.save()
+    return (container, context)
+}
+
+private func restore(_ url: URL, into context: ModelContext) throws {
+    let items = try context.fetch(FetchDescriptor<PlanItem>())
+    let notes = try context.fetch(FetchDescriptor<Note>())
+    let settings = try context.fetch(FetchDescriptor<UserSettings>()).first
+    try JSONBackupService.restoreBackup(
+        from: url,
+        existingPlanItems: items,
+        existingNotes: notes,
+        existingSettings: settings,
+        in: context
+    )
+}
+
+@Test func malformedBackupLeavesExistingDataUntouched() throws {
+    let (_, context) = try seedRestoreContext()
+    // 真实 App 里传进来的是 mainContext，autosave 是开着的。
+    context.autosaveEnabled = true
+    let url = try writeBackupJSON("{ this is not json")
+
+    var didThrow = false
+    do {
+        try restore(url, into: context)
+    } catch {
+        didThrow = true
+    }
+
+    #expect(didThrow)
+    let items = try context.fetch(FetchDescriptor<PlanItem>())
+    let notes = try context.fetch(FetchDescriptor<Note>())
+    #expect(items.map(\.title) == ["原有任务"])
+    #expect(notes.map(\.title) == ["原有笔记"])
+    // 失败后不能把 context 永久留在关闭 autosave 的状态。
+    #expect(context.autosaveEnabled)
+}
+
+@Test func duplicateRecordIDsAreRejectedBeforeAnyMutation() throws {
+    let (_, context) = try seedRestoreContext()
+    let url = try writeBackupJSON(
+        backupEnvelopeJSON(planItems: [
+            backupItemJSON(id: UUID().uuidString, title: "第一条"),
+            backupItemJSON(id: UUID().uuidString, title: "第二条"),
+        ])
+    )
+    try restore(url, into: context)
+    #expect(try context.fetch(FetchDescriptor<PlanItem>()).map(\.title).sorted() == ["第一条", "第二条"].sorted())
+
+    // 同一个 id 出现两次会撞上 @Attribute(.unique)，旧实现此时已经删完原数据。
+    let shared = UUID().uuidString
+    let badURL = try writeBackupJSON(
+        backupEnvelopeJSON(planItems: [
+            backupItemJSON(id: shared, title: "重复甲"),
+            backupItemJSON(id: shared, title: "重复乙"),
+        ])
+    )
+
+    var caught: BackupRestoreError?
+    do {
+        try restore(badURL, into: context)
+    } catch let error as BackupRestoreError {
+        caught = error
+    }
+
+    #expect(caught == .duplicateRecordID(shared))
+    // 原备份数据必须还在，而不是被上一轮导入后再删空。
+    let survivors = try context.fetch(FetchDescriptor<PlanItem>()).map(\.title).sorted()
+    #expect(survivors == ["第一条", "第二条"].sorted())
+}
+
+@Test func validBackupReplacesAndPersistsInOneCommit() throws {
+    let (container, context) = try seedRestoreContext()
+    context.autosaveEnabled = true
+    let url = try writeBackupJSON(backupEnvelopeJSON(
+        planItems: [backupItemJSON(id: UUID().uuidString, title: "导入任务")],
+        notes: [
+            """
+            {"id":"\(UUID().uuidString)","title":"导入笔记","content":"新内容",\
+            "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}
+            """
+        ]
+    ))
+
+    try restore(url, into: context)
+
+    // 用另一个 context 验证确实已提交，而不是只活在待保存的事务里。
+    let probe = ModelContext(container)
+    #expect(try probe.fetch(FetchDescriptor<PlanItem>()).map(\.title) == ["导入任务"])
+    #expect(try probe.fetch(FetchDescriptor<Note>()).map(\.title) == ["导入笔记"])
+    #expect(context.autosaveEnabled)
+}
+
 // MARK: - F-01 持久化降级必须可见
 
 private func makeTempDirectory() throws -> URL {
